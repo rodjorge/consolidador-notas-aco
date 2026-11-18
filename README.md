@@ -1,0 +1,55 @@
+# Consolidador de notas · Arquitectura de Computadoras (UTN FRC)
+
+Página para unir las notas de **Moodle** (microevaluaciones, parciales) con las de los **exámenes en papel** (Excel), calcular la **condición académica** de cada estudiante y exportar las planillas en Excel.
+
+**Usarla:** https://rodjorge.github.io/consolidador-notas-aco/
+
+## Privacidad: las notas no salen de tu computadora
+
+- La página es un único archivo HTML. Los Excel se leen **en tu navegador**: no se suben a GitHub ni a ningún otro servidor.
+- La página incluye una política de seguridad (`Content-Security-Policy`) que **le prohíbe al navegador enviar datos** a cualquier servidor. Lo único que se descarga al abrirla es la librería [SheetJS](https://sheetjs.com) para leer y escribir Excel.
+- Lo podés comprobar: abrí las herramientas del navegador (F12) → pestaña **Red**, y cargá tus archivos. No sale ningún pedido.
+- Lo que se guarda en tu navegador es sólo la **configuración** de cada comisión (archivos, columnas y reglas), nunca las notas.
+
+> ⚠ Este repositorio es público. **Nunca** subas planillas con datos reales. El `.gitignore` excluye todas las planillas salvo las de `ejemplos/`, que tienen datos inventados.
+
+## Cómo se usa
+
+1. **Comisión:** escribí el nombre (por ej. `1K1`). La configuración se guarda sola. Con *Duplicar* la copiás para otra comisión, y con *Exportar/Importar configuración* (.json) la compartís con otros docentes.
+2. **Archivos:** cargá el export de Moodle (*Calificaciones → Exportar → Hoja de cálculo Excel*) y los Excel de los exámenes en papel. Elegí en cada uno la columna que identifica al estudiante (legajo, DNI o email). El legajo se cruza aunque esté escrito con punto, coma o espacios.
+3. **Evaluaciones:** con *Autodetectar* se proponen las columnas de Moodle. Indicá para cada una si es micro, parcial o recuperatorio, y cuál es su conversión:
+   - *puntaje → % → escala*: cuestionarios de Moodle (puntaje sobre 100, 10, etc.).
+   - *ya es nota (1 a 10)*: notas que ya están puestas, como las de los exámenes en papel.
+4. **Reglas:** vienen cargadas las de la cátedra (ver abajo). Se pueden cambiar por comisión.
+5. **Resultados:** muestra cuántos estudiantes quedan en cada condición, una observación por estudiante y avisos para revisar (por ejemplo, estudiantes que faltan en algún archivo o legajos mal cargados).
+6. **Exportar:**
+   - *Planilla para el sistema*: con las columnas, el orden y los títulos que elijas; en .xlsx o .csv.
+   - *Detalle para docentes*: todas las notas, más las reglas usadas y los avisos.
+   - *Un solo Excel con todo*: ambas cosas en el mismo archivo.
+
+## Reglas de la cátedra (valores por defecto)
+
+**Escala de notas** (porcentaje → nota; el porcentaje se redondea al entero):
+
+| Nota | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| desde | 0 % | 30 % | 50 % | 55 % | 58 % | 60 % | 69 % | 78 % | 87 % | 96 % |
+
+- Parcial y microevaluación **aprobados con nota 4** o más (55 % o más).
+- Entre un parcial y su recuperatorio **queda siempre la nota mayor**.
+
+**Condición**, evaluada en este orden:
+
+| # | Situación | Condición |
+|---|---|---|
+| 1 | Sin ninguna nota registrada | No Cursó |
+| 2 | Falta la nota de algún parcial | Abandonó |
+| 3 | Algún parcial con menos de 4 | Libre |
+| 4 | Ambos parciales con 7 o más y al menos el 75 % de las micros aprobadas | Aprobación Directa |
+| 5 | El resto (parciales aprobados) | Regular |
+
+La nota final de Aprobación Directa es el promedio de los parciales redondeado al entero.
+
+## Probarla sin datos reales
+
+En [`ejemplos/`](ejemplos/) hay dos planillas con **datos ficticios**: un export de Moodle y un Excel de 1er parcial en papel.

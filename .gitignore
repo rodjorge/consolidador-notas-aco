@@ -1,0 +1,15 @@
+# Datos reales de alumnos: NUNCA subir al repositorio.
+entrada/
+salida/
+
+# Por las dudas, ninguna planilla fuera de ejemplos/ (que tiene sólo datos ficticios).
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+*.csv
+!ejemplos/*.xlsx
+
+# Archivos temporales de Excel/LibreOffice
+~$*
+.~lock.*

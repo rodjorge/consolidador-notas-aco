@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Política de seguridad: el navegador NO deja que esta página envíe datos a ningún servidor
+     (connect-src 'none' bloquea fetch/XHR/WebSocket/beacon; form-action 'none' bloquea formularios;
+     img-src sin hosts externos impide filtrar datos en URLs de imágenes).
+     Sólo se permite descargar la librería SheetJS desde su CDN oficial. No quitar. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'">
+<title>Consolidador de notas · ACO UTN FRC</title>
+<!-- SheetJS: lee y escribe Excel en el navegador. Los archivos NO se suben a ningún servidor. -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{--azul:#1538B8;--azul-osc:#243051;--gris:#f4f6fb;--borde:#d5dbe8;--ok:#1e7a3c;--reg:#8a5d00;--libre:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--gris);color:#1b1f2a;font-size:14px}
+header{background:var(--azul-osc);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;font-weight:600}
+header .priv{margin-left:auto;font-size:12px;opacity:.9}
+main{max-width:1250px;margin:0 auto;padding:16px}
+section.card{background:#fff;border:1px solid var(--borde);border-radius:8px;padding:16px 18px;margin-bottom:14px}
+section.card h2{font-size:15px;margin:0 0 10px;color:var(--azul-osc)}
+h2 .num{display:inline-block;background:var(--azul);color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:22px;font-size:12px;margin-right:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:6px 0}
+input[type=text],input[type=number],input[type=search],select{padding:5px 7px;border:1px solid var(--borde);border-radius:5px;font:inherit;background:#fff;max-width:100%}
+input[type=number]{width:75px}
+button{font:inherit;padding:6px 12px;border-radius:5px;border:1px solid var(--azul);background:#fff;color:var(--azul);cursor:pointer}
+button:hover{background:#eef1fb}
+button.prim{background:var(--azul);color:#fff}
+button.prim:hover{background:#0f2c94}
+button.mini{padding:2px 8px;font-size:12px}
+button.danger{border-color:var(--libre);color:var(--libre)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid #e6e9f0;padding:5px 6px;text-align:left;vertical-align:middle}
+th{background:#eef1f8;position:sticky;top:0;z-index:1}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+.muted{color:#667085;font-size:12px}
+.slot{border:1px dashed var(--borde);border-radius:6px;padding:10px 12px;margin:8px 0}
+.slot.ok{border-style:solid;border-color:#b9c6ea;background:#fafbff}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap}
+.c-promo{background:#e3f4e8;color:var(--ok)}.c-reg{background:#fff1cc;color:var(--reg)}.c-libre{background:#fde7e5;color:var(--libre)}
+.c-aband{background:#ece7f6;color:#5b3f99}.c-nocurso{background:#eceef2;color:#4a5263}
+.tabla-esc input{width:52px}.tabla-esc td,.tabla-esc th{padding:2px 4px;text-align:center;border:none}
+.scroll{max-height:520px;overflow:auto;border:1px solid #e6e9f0;border-radius:6px}
+.warn{background:#fff8e6;border:1px solid #f0d58a;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:13px}
+.info{background:#eef3ff;border:1px solid #c9d6fb;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+fieldset{border:1px solid var(--borde);border-radius:6px;padding:8px 12px;margin:0}
+legend{font-weight:600;font-size:13px;color:var(--azul-osc);padding:0 4px}
+fieldset .row{margin:5px 0}
+.stats{display:flex;gap:10px;margin:8px 0;flex-wrap:wrap}
+.stat{padding:8px 14px;border-radius:6px;min-width:120px}
+.stat b{display:block;font-size:22px}
+details summary{cursor:pointer;font-weight:600;margin:6px 0}
+.cols li{display:flex;gap:6px;align-items:center;margin:3px 0}
+.cols{list-style:none;padding:0;margin:6px 0}
+.sp{flex:1}
+code{background:#eef1f8;padding:0 4px;border-radius:3px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Consolidador de notas · Arquitectura de Computadoras</h1>
+  <span class="priv">🔒 Todo se procesa en este navegador: los archivos no se suben a ningún servidor.</span>
+</header>
+<main>
+
+<section class="card">
+  <h2><span class="num">1</span>Comisión</h2>
+  <div class="row">
+    <label>Configuración guardada: <select id="perfilSel" onchange="cambiarPerfil(this.value)"></select></label>
+    <button class="mini" onclick="nuevoPerfil()">Nueva comisión</button>
+    <button class="mini" onclick="duplicarPerfil()">Duplicar para otra comisión</button>
+    <button class="mini danger" onclick="eliminarPerfil()">Eliminar</button>
+    <span class="sp"></span>
+    <button class="mini" onclick="exportarConfig()">Exportar configuración (.json)</button>
+    <button class="mini" onclick="document.getElementById('impCfg').click()">Importar configuración</button>
+    <input type="file" id="impCfg" accept=".json" hidden onchange="importarConfig(this)">
+  </div>
+  <div class="row">
+    <label>Nombre de la comisión: <input type="text" id="comision" placeholder="ej. 1K1" onchange="renombrar(this.value)"></label>
+    <span class="muted">La configuración (archivos esperados, columnas y reglas) se guarda sola en este navegador. Las notas no se guardan.</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="num">2</span>Archivos</h2>
+  <div class="muted">Cargá el export de Moodle (<i>Calificaciones → Exportar → Hoja de cálculo Excel</i>) y los Excel de los exámenes en papel. La <b>columna de identificación</b> tiene que tener el mismo dato en todos los archivos (legajo, DNI o email).</div>
+  <div id="slots"></div>
+  <button class="mini" onclick="agregarSlot()">+ Agregar archivo</button>
+</section>
+
+<section class="card">
+  <h2><span class="num">3</span>Evaluaciones</h2>
+  <div class="muted">Indicá qué columna corresponde a cada micro, parcial o recuperatorio. Con <i>Autodetectar</i> se proponen las columnas de cuestionarios de Moodle.</div>
+  <div id="evals"></div>
+</section>
+
+<section class="card">
+  <h2><span class="num">4</span>Reglas de la condición académica</h2>
+  <div class="info">Los valores iniciales son los de la cátedra. Si una comisión necesita otros, cambialos acá: quedan guardados con esa comisión.</div>
+  <div id="reglas" class="grid"></div>
+</section>
+
+<section class="card">
+  <h2><span class="num">5</span>Resultados</h2>
+  <div id="resultados"><div class="muted">Cargá al menos un archivo para ver los resultados.</div></div>
+</section>
+
+<section class="card">
+  <h2><span class="num">6</span>Exportar</h2>
+  <div id="exportar"></div>
+</section>
+
+</main>
+<script>
+'use strict';
+/* ====================== utilidades ====================== */
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const clone = o => JSON.parse(JSON.stringify(o));
+const str = v => v == null ? '' : String(v).trim();
+const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+const r2 = n => n == null ? null : Math.round(n * 100) / 100;
+const fmt = n => n == null || n === '' ? '—' : (typeof n === 'number' ? n.toLocaleString('es-AR', {maximumFractionDigits: 2}) : esc(n));
+const hoy = () => new Date().toISOString().slice(0, 10);
+
+function normKey(v) {
+  if (v == null) return '';
+  let s = String(v).trim().toLowerCase();
+  if (!s) return '';
+  if (s.includes('@')) return s;
+  s = s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+  if (/^\d+$/.test(s)) s = s.replace(/^0+(?=\d)/, '');
+  return s;
+}
+function parseNota(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  let s = String(v).trim().replace(/\s|%/g, '');
+  if (!s || /^[-–—]$/.test(s)) return null;
+  if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s)) s = s.replace(/\./g, '');
+  s = s.replace(',', '.');
+  if (!/^-?\d*\.?\d+$/.test(s)) return null;           // "Ausente", "AUS", etc. => sin nota
+  return parseFloat(s);
+}
+function descargar(nombre, contenido, tipo) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], {type: tipo}));
+  a.download = nombre; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+const opciones = (lista, sel, vacio = '— elegir —') =>
+  (vacio !== null ? `<option value="">${esc(vacio)}</option>` : '') +
+  lista.map(x => {
+    const [v, t] = Array.isArray(x) ? x : [x, x];
+    return `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(t)}</option>`;
+  }).join('');
+
+/* ====================== estado ====================== */
+const LS_PERFILES = 'consolidador-notas.perfiles.v1', LS_ULTIMO = 'consolidador-notas.ultimo';
+// Valores por defecto = reglamento de la cátedra ACO (UTN FRC) 2026.
+const REGLAS_DEF = {
+  tabla: [0, 30, 50, 55, 58, 60, 69, 78, 87, 96],   // % mínimo para la nota 1..10
+  redondearPct: true,
+  parcialAprobado: 4, parcialPromo: 7,
+  recPolitica: 'mayor', recPermitePromo: true,
+  microAprobada: 4, microAusenteCero: true,
+  microsRegModo: 'ninguno', microsRegValor: 0,
+  microsPromoModo: 'porcentaje', microsPromoValor: 75,
+  redondeo: 'entero',
+  etqPromo: 'Aprobación Directa', etqReg: 'Regular', etqLibre: 'Libre', etqAband: 'Abandonó', etqNoCurso: 'No Cursó'
+};
+const CONDS = ['promo', 'reg', 'libre', 'aband', 'nocurso'];
+const CLASE = {promo: 'c-promo', reg: 'c-reg', libre: 'c-libre', aband: 'c-aband', nocurso: 'c-nocurso'};
+const etq = c => cfg.reglas[{promo: 'etqPromo', reg: 'etqReg', libre: 'etqLibre', aband: 'etqAband', nocurso: 'etqNoCurso'}[c]];
+const nuevoSlot = alias => ({alias, sheet: '', headerRow: 0, keyCol: '', apeCol: '', nomCol: '', mailCol: ''});
+const nuevaConfig = () => ({
+  comision: '',
+  slots: [nuevoSlot('Moodle'), nuevoSlot('1er parcial (papel)')],
+  evals: [],
+  reglas: {...REGLAS_DEF},
+  exportCols: ['legajo', 'apellido', 'nombre', 'condicion', 'notaFinal'],
+  exportNombres: {},
+  formatoSistema: 'xlsx'
+});
+let perfiles = {};
+try { perfiles = JSON.parse(localStorage.getItem(LS_PERFILES) || '{}'); } catch { perfiles = {}; }
+let cfg = nuevaConfig();
+let datos = [];            // por slot: {fileName, wb, headers, rows, headerIdx}
+let filtro = {cond: '', q: ''};
+
+function normalizarCfg(c) {
+  const base = nuevaConfig();
+  c = Object.assign(base, c);
+  c.reglas = Object.assign({...REGLAS_DEF}, c.reglas || {});
+  c.slots = (c.slots || []).map(s => Object.assign(nuevoSlot(''), s));
+  c.evals = c.evals || [];
+  return c;
+}
+function guardar() {
+  if (!cfg.comision) return;
+  perfiles[cfg.comision] = clone(cfg);
+  localStorage.setItem(LS_PERFILES, JSON.stringify(perfiles));
+  localStorage.setItem(LS_ULTIMO, cfg.comision);
+}
+
+/* ====================== perfiles (comisiones) ====================== */
+function renderPerfil() {
+  const nombres = Object.keys(perfiles).sort((a, b) => a.localeCompare(b, 'es'));
+  $('#perfilSel').innerHTML = opciones(nombres, cfg.comision, cfg.comision && !perfiles[cfg.comision] ? cfg.comision : '— nueva —');
+  $('#comision').value = cfg.comision;
+}
+function cambiarPerfil(n) {
+  if (!n || !perfiles[n]) return nuevoPerfil();
+  cfg = normalizarCfg(clone(perfiles[n])); datos = [];
+  localStorage.setItem(LS_ULTIMO, n);
+  renderTodo();
+}
+function nuevoPerfil() { cfg = nuevaConfig(); datos = []; renderTodo(); $('#comision').focus(); }
+function duplicarPerfil() {
+  const n = (prompt('Nombre de la nueva comisión (se copia la configuración actual, sin notas):') || '').trim();
+  if (!n) return;
+  if (perfiles[n] && !confirm(`Ya existe «${n}». ¿Reemplazarla?`)) return;
+  cfg = clone(cfg); cfg.comision = n; datos = [];
+  guardar(); renderTodo();
+}
+function eliminarPerfil() {
+  if (!cfg.comision || !perfiles[cfg.comision]) return nuevoPerfil();
+  if (!confirm(`¿Eliminar la configuración de «${cfg.comision}» de este navegador?`)) return;
+  delete perfiles[cfg.comision];
+  localStorage.setItem(LS_PERFILES, JSON.stringify(perfiles));
+  nuevoPerfil();
+}
+function renombrar(v) {
+  v = v.trim();
+  const viejo = cfg.comision;
+  if (!v || v === viejo) { $('#comision').value = viejo; return; }
+  if (perfiles[v] && !confirm(`Ya existe «${v}». ¿Reemplazarla con esta configuración?`)) { $('#comision').value = viejo; return; }
+  if (viejo) delete perfiles[viejo];
+  cfg.comision = v; guardar(); renderPerfil(); renderExport();
+}
+function exportarConfig() {
+  descargar(`config_notas_${cfg.comision || 'comision'}.json`, JSON.stringify(cfg, null, 2), 'application/json');
+}
+function importarConfig(inp) {
+  const f = inp.files[0]; inp.value = '';
+  if (!f) return;
+  f.text().then(t => {
+    let c;
+    try { c = JSON.parse(t); } catch { return alert('El archivo no es una configuración válida.'); }
+    if (!c || !Array.isArray(c.slots) || !Array.isArray(c.evals)) return alert('El archivo no es una configuración válida.');
+    c = normalizarCfg(c);
+    const n = (prompt('Nombre de la comisión para esta configuración:', c.comision || '') || '').trim();
+    if (!n) return;
+    if (perfiles[n] && !confirm(`Ya existe «${n}». ¿Reemplazarla?`)) return;
+    c.comision = n; cfg = c; datos = []; guardar(); renderTodo();
+  });
+}
+
+/* ====================== archivos ====================== */
+function detectarEncabezado(aoa) {
+  let best = 0, bestCnt = -1;
+  for (let i = 0; i < Math.min(15, aoa.length); i++) {
+    const cnt = (aoa[i] || []).filter(c => c != null && String(c).trim() !== '' && isNaN(Number(c))).length;
+    if (cnt > bestCnt) { bestCnt = cnt; best = i; }
+  }
+  return best;
+}
+function cargar(i, file) {
+  if (!file) return;
+  file.arrayBuffer().then(buf => {
+    let wb;
+    try { wb = XLSX.read(buf, {type: 'array'}); } catch (e) { return alert('No se pudo leer el archivo: ' + e.message); }
+    datos[i] = {fileName: file.name, wb};
+    parsearSlot(i);
+    guardar(); renderSlots(); renderEvals(); recalcular();
+  });
+}
+function parsearSlot(i) {
+  const d = datos[i], s = cfg.slots[i];
+  if (!d) return;
+  if (!d.wb.SheetNames.includes(s.sheet)) s.sheet = d.wb.SheetNames[0];
+  const aoa = XLSX.utils.sheet_to_json(d.wb.Sheets[s.sheet], {header: 1, defval: null, raw: true, blankrows: true});
+  const h = s.headerRow > 0 ? s.headerRow - 1 : detectarEncabezado(aoa);
+  d.headerIdx = h;
+  const crudos = (aoa[h] || []).map((c, j) => str(c) || `Columna ${XLSX.utils.encode_col(j)}`);
+  const cuenta = {};
+  d.headers = crudos.map(x => { cuenta[x] = (cuenta[x] || 0) + 1; return cuenta[x] > 1 ? `${x} (${cuenta[x]})` : x; });
+  d.rows = [];
+  aoa.slice(h + 1).forEach((r, k) => {
+    if (!r || !r.some(c => c != null && String(c).trim() !== '')) return;
+    const o = {__fila: h + 2 + k};
+    d.headers.forEach((col, j) => o[col] = r[j] ?? null);
+    d.rows.push(o);
+  });
+  adivinarColumnas(i);
+}
+function adivinarColumnas(i) {
+  const d = datos[i], s = cfg.slots[i], H = d.headers;
+  const lleno = h => d.rows.length ? d.rows.filter(r => str(r[h]) !== '').length / d.rows.length : 0;
+  const busca = (...res) => { for (const re of res) { const h = H.find(h => re.test(h) && lleno(h) > .5); if (h) return h; } return ''; };
+  if (!H.includes(s.keyCol)) s.keyCol = busca(/legajo/i, /n[uú]mero de id|id ?number/i, /dni|documento/i, /correo|e-?mail/i);
+  if (!H.includes(s.apeCol)) s.apeCol = busca(/apellido/i, /alumno|estudiante|nombre completo/i);
+  if (!H.includes(s.nomCol)) s.nomCol = H.find(h => /nombre/i.test(h) && !/apellido|completo|usuario/i.test(h) && lleno(h) > .5) || '';
+  if (!H.includes(s.mailCol)) s.mailCol = busca(/correo|e-?mail/i);
+}
+function agregarSlot() { cfg.slots.push(nuevoSlot(`Archivo ${cfg.slots.length + 1}`)); guardar(); renderSlots(); renderEvals(); }
+function quitarSlot(i) {
+  const usadas = cfg.evals.filter(e => e.slot === i).length;
+  if (!confirm(`¿Quitar «${cfg.slots[i].alias}»?` + (usadas ? ` ${usadas} evaluación(es) quedarán sin columna asignada.` : ''))) return;
+  cfg.slots.splice(i, 1); datos.splice(i, 1);
+  cfg.evals.forEach(e => { if (e.slot === i) { e.slot = -1; e.col = ''; } else if (e.slot > i) e.slot--; });
+  guardar(); renderSlots(); renderEvals(); recalcular();
+}
+function setSlot(i, campo, valor) {
+  const s = cfg.slots[i];
+  s[campo] = campo === 'headerRow' ? (parseInt(valor) || 0) : valor;
+  if ((campo === 'sheet' || campo === 'headerRow') && datos[i]) parsearSlot(i);
+  guardar(); renderSlots(); renderEvals(); recalcular();
+}
+function renderSlots() {
+  $('#slots').innerHTML = cfg.slots.map((s, i) => {
+    const d = datos[i];
+    let det = '';
+    if (d) {
+      const H = d.headers;
+      det = `
+      <div class="row">
+        ${d.wb.SheetNames.length > 1 ? `<label>Hoja: <select onchange="setSlot(${i},'sheet',this.value)">${opciones(d.wb.SheetNames, s.sheet, null)}</select></label>` : ''}
+        <label>Fila de encabezados: <input type="number" min="0" value="${s.headerRow || ''}" placeholder="auto" onchange="setSlot(${i},'headerRow',this.value)"></label>
+        <span class="muted">detectada: fila ${d.headerIdx + 1} · ${d.rows.length} filas de datos</span>
+      </div>
+      <div class="row">
+        <label><b>Identificación</b>: <select onchange="setSlot(${i},'keyCol',this.value)">${opciones(H, s.keyCol)}</select></label>
+        <label>Apellido (o apellido y nombre): <select onchange="setSlot(${i},'apeCol',this.value)">${opciones(H, s.apeCol, '— ninguna —')}</select></label>
+        <label>Nombre: <select onchange="setSlot(${i},'nomCol',this.value)">${opciones(H, s.nomCol, '— ninguna —')}</select></label>
+        <label>Email: <select onchange="setSlot(${i},'mailCol',this.value)">${opciones(H, s.mailCol, '— ninguna —')}</select></label>
+      </div>
+      ${!s.keyCol ? '<div class="warn">Elegí la columna de identificación para poder cruzar este archivo con los demás.</div>' : ''}`;
+    } else if (s.keyCol) {
+      det = `<div class="muted">Esperado: identificación en <code>${esc(s.keyCol)}</code>${s.sheet ? `, hoja <code>${esc(s.sheet)}</code>` : ''}.</div>`;
+    }
+    return `<div class="slot ${d ? 'ok' : ''}">
+      <div class="row">
+        <b>Archivo ${i + 1}</b>
+        <input type="text" value="${esc(s.alias)}" title="Nombre para identificar este archivo" onchange="setSlot(${i},'alias',this.value)">
+        <input type="file" accept=".xlsx,.xls,.ods,.csv" onchange="cargar(${i}, this.files[0])">
+        <span class="muted">${d ? '✔ ' + esc(d.fileName) : 'sin cargar'}</span>
+        <span class="sp"></span>
+        <button class="mini danger" onclick="quitarSlot(${i})">Quitar</button>
+      </div>${det}</div>`;
+  }).join('') || '<div class="muted">No hay archivos configurados.</div>';
+}
+
+/* ====================== evaluaciones ====================== */
+const TIPOS = [['micro', 'Microevaluación'], ['parcial', 'Parcial'], ['recuperatorio', 'Recuperatorio']];
+const CONVS = [['tabla', 'puntaje → % → escala'], ['directa', 'ya es nota (1 a 10)']];
+function agregarEval(tipo = 'micro') {
+  const n = cfg.evals.filter(e => e.tipo === tipo).length + 1;
+  const nombre = tipo === 'micro' ? `Micro ${n}` : tipo === 'parcial' ? `Parcial ${n}` : `Recuperatorio ${n}`;
+  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
+  cfg.evals.push({id: uid(), nombre, tipo, slot: 0, col: '', max: 100, conv: 'tabla', recuperaDe: tipo === 'recuperatorio' && parc[0] ? parc[0].id : ''});
+  guardar(); renderEvals(); recalcular();
+}
+function setEval(id, campo, valor) {
+  const e = cfg.evals.find(x => x.id === id);
+  if (campo === 'slot') { e.slot = parseInt(valor); e.col = ''; }
+  else if (campo === 'max') e.max = parseFloat(String(valor).replace(',', '.')) || (e.conv === 'directa' ? 10 : 100);
+  else if (campo === 'conv') { e.conv = valor; e.max = valor === 'directa' ? 10 : 100; }
+  else e[campo] = valor;
+  if (campo === 'tipo' && valor === 'recuperatorio' && !e.recuperaDe) {
+    const p = cfg.evals.find(x => x.tipo === 'parcial'); e.recuperaDe = p ? p.id : '';
+  }
+  guardar(); renderEvals(); renderExport(); recalcular();
+}
+function moverEval(id, d) {
+  const i = cfg.evals.findIndex(x => x.id === id), j = i + d;
+  if (j < 0 || j >= cfg.evals.length) return;
+  [cfg.evals[i], cfg.evals[j]] = [cfg.evals[j], cfg.evals[i]];
+  guardar(); renderEvals(); recalcular();
+}
+function quitarEval(id) {
+  cfg.evals = cfg.evals.filter(x => x.id !== id);
+  cfg.evals.forEach(e => { if (e.recuperaDe === id) e.recuperaDe = ''; });
+  cfg.exportCols = cfg.exportCols.filter(c => !c.endsWith(':' + id));
+  guardar(); renderEvals(); renderExport(); recalcular();
+}
+function autodetectar(i) {
+  const d = datos[i], s = cfg.slots[i];
+  if (!d) return alert('Primero cargá ese archivo.');
+  const usadas = new Set(cfg.evals.filter(e => e.slot === i).map(e => e.col));
+  const ignorar = new Set([s.keyCol, s.apeCol, s.nomCol, s.mailCol]);
+  const cand = d.headers.filter(h => !usadas.has(h) && !ignorar.has(h) &&
+    !/total del curso|[uú]ltima descarga|institu|departamento/i.test(h) &&
+    /cuestionario|quiz|micro|parcial|recup|evaluaci|nota|examen/i.test(h));
+  if (!cand.length) return alert('No encontré columnas nuevas que parezcan evaluaciones. Agregalas a mano.');
+  const nuevas = cand.map(h => {
+    const nombre = h.replace(/^(cuestionario|quiz|tarea)\s*:\s*/i, '').replace(/\s*\((real|porcentaje|letra)\)\s*$/i, '').trim();
+    const tipo = /recup/i.test(h) ? 'recuperatorio' : /parcial/i.test(h) ? 'parcial' : (/nota/i.test(h) && !/micro/i.test(h) ? 'parcial' : 'micro');
+    // Moodle exporta puntajes de cuestionarios (p. ej. sobre 100) => se convierten con la tabla de porcentajes.
+    // Cualquier otra columna con valores entre 0 y 10 (Excel en papel, aunque tenga 6,5) se toma como nota ya puesta.
+    const nums = d.rows.map(r => parseNota(r[h])).filter(x => x != null);
+    const yaEsNota = nums.length > 0 && nums.every(x => x >= 0 && x <= 10) && !/cuestionario|quiz/i.test(h);
+    const conv = yaEsNota ? 'directa' : 'tabla';
+    const max = yaEsNota ? 10 : (nums.length && Math.max(...nums) <= 10 ? 10 : 100);
+    return {id: uid(), nombre: nombre === 'Nota' ? s.alias : nombre, tipo, slot: i, col: h, max, conv, recuperaDe: ''};
+  });
+  cfg.evals.push(...nuevas);
+  // recuperatorios: asociar al parcial con el mismo número / palabra, o al del mismo archivo
+  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
+  const clave = t => (t.match(/\b(\d|primer|segund|tercer)/i) || [''])[0].toLowerCase().replace('primer', '1').replace('segund', '2').replace('tercer', '3');
+  nuevas.filter(e => e.tipo === 'recuperatorio').forEach(r => {
+    const k = clave(r.nombre);
+    const p = (k && parc.find(p => clave(p.nombre) === k)) || parc.find(p => p.slot === r.slot) || parc[0];
+    r.recuperaDe = p ? p.id : '';
+  });
+  guardar(); renderEvals(); renderExport(); recalcular();
+}
+function renderEvals() {
+  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
+  const fuentes = cfg.slots.map((s, i) => [i, s.alias || `Archivo ${i + 1}`]);
+  const filas = cfg.evals.map(e => {
+    const d = datos[e.slot];
+    const colSel = d
+      ? `<select onchange="setEval('${e.id}','col',this.value)">${opciones(d.headers, e.col)}</select>${e.col && !d.headers.includes(e.col) ? ' <span class="tag c-libre">no está en el archivo</span>' : ''}`
+      : `<input type="text" value="${esc(e.col)}" placeholder="(cargá el archivo)" onchange="setEval('${e.id}','col',this.value)">`;
+    return `<tr>
+      <td><input type="text" value="${esc(e.nombre)}" onchange="setEval('${e.id}','nombre',this.value)" style="width:170px"></td>
+      <td><select onchange="setEval('${e.id}','tipo',this.value)">${opciones(TIPOS, e.tipo, null)}</select></td>
+      <td>${e.tipo === 'recuperatorio' ? `<select onchange="setEval('${e.id}','recuperaDe',this.value)">${opciones(parc.map(p => [p.id, p.nombre]), e.recuperaDe)}</select>` : '<span class="muted">—</span>'}</td>
+      <td><select onchange="setEval('${e.id}','slot',this.value)">${opciones(fuentes, e.slot, '— elegir —')}</select></td>
+      <td>${colSel}</td>
+      <td><select onchange="setEval('${e.id}','conv',this.value)">${opciones(CONVS, e.conv || 'tabla', null)}</select></td>
+      <td><input type="number" step="any" value="${e.max}" onchange="setEval('${e.id}','max',this.value)" title="Puntaje máximo de esa columna en el archivo"></td>
+      <td style="white-space:nowrap"><button class="mini" onclick="moverEval('${e.id}',-1)">↑</button> <button class="mini" onclick="moverEval('${e.id}',1)">↓</button> <button class="mini danger" onclick="quitarEval('${e.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+  const nM = cfg.evals.filter(e => e.tipo === 'micro').length, nP = parc.length, nR = cfg.evals.length - nM - nP;
+  $('#evals').innerHTML = `
+    <div class="row">
+      ${cfg.slots.map((s, i) => `<button class="mini" onclick="autodetectar(${i})" ${datos[i] ? '' : 'disabled'}>Autodetectar en «${esc(s.alias)}»</button>`).join('')}
+      <span class="sp"></span>
+      <button class="mini" onclick="agregarEval('micro')">+ Micro</button>
+      <button class="mini" onclick="agregarEval('parcial')">+ Parcial</button>
+      <button class="mini" onclick="agregarEval('recuperatorio')">+ Recuperatorio</button>
+    </div>
+    ${cfg.evals.length ? `<div class="muted">${nM} micro(s) · ${nP} parcial(es) · ${nR} recuperatorio(s)</div>
+    <table><thead><tr><th>Nombre</th><th>Tipo</th><th>Recupera a</th><th>Archivo</th><th>Columna</th><th>Conversión</th><th>Puntaje máx.</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+    : '<div class="muted" style="margin-top:8px">Todavía no hay evaluaciones. Cargá los archivos y usá Autodetectar, o agregalas a mano.</div>'}`;
+}
+
+/* ====================== reglas ====================== */
+const MODOS = [['ninguno', 'sin requisito'], ['porcentaje', '% de micros aprobadas ≥'], ['cantidad', 'cantidad de micros aprobadas ≥'], ['promedio', 'promedio de micros ≥']];
+function setRegla(k, el) {
+  const R = cfg.reglas;
+  R[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (parseFloat(el.value) || 0) : el.value;
+  guardar();
+  if (k.endsWith('Modo') || k.startsWith('etq') || k === 'parcialPromo') renderReglas();
+  recalcular();
+}
+function renderReglas() {
+  const R = cfg.reglas;
+  const num = (k, step = 'any') => `<input type="number" step="${step}" value="${R[k]}" onchange="setRegla('${k}',this)">`;
+  const sel = (k, ops) => `<select onchange="setRegla('${k}',this)">${opciones(ops, R[k], null)}</select>`;
+  const chk = k => `<input type="checkbox" ${R[k] ? 'checked' : ''} onchange="setRegla('${k}',this)">`;
+  const txt = k => `<input type="text" value="${esc(R[k])}" onchange="setRegla('${k}',this)" style="width:130px">`;
+  const micro = (m, v) => `${sel(m, MODOS)} ${R[m] !== 'ninguno' ? num(v) : ''}`;
+  const T = R.tabla;
+  const hasta = i => i < 9 ? `${T[i + 1] - 1}%` : '100%';
+  $('#reglas').innerHTML = `
+  <fieldset><legend>Escala de notas (porcentaje → nota)</legend>
+    <table class="tabla-esc"><tr><th>Nota</th>${T.map((_, i) => `<th>${i + 1}</th>`).join('')}</tr>
+      <tr><td>desde %</td>${T.map((m, i) => `<td><input type="number" value="${m}" ${i === 0 ? 'disabled' : ''} onchange="setTabla(${i},this.value)" title="hasta ${hasta(i)}"></td>`).join('')}</tr></table>
+    <div class="row"><label>${chk('redondearPct')} Redondear el porcentaje al entero antes de aplicar la tabla</label> <span class="muted">(ej. 68,7% → 69% → nota 7)</span></div>
+  </fieldset>
+  <fieldset><legend>Parciales</legend>
+    <div class="row">Parcial aprobado con nota ≥ ${num('parcialAprobado')}</div>
+    <div class="row">${esc(R.etqPromo)}: cada parcial con nota ≥ ${num('parcialPromo')}</div>
+    <div class="row">La nota del recuperatorio ${sel('recPolitica', [['mayor', 'queda la mayor entre parcial y recuperatorio'], ['reemplaza', 'reemplaza siempre a la del parcial']])}</div>
+    <div class="row"><label>${chk('recPermitePromo')} Un parcial recuperado permite ${esc(R.etqPromo)}</label></div>
+  </fieldset>
+  <fieldset><legend>Microevaluaciones</legend>
+    <div class="row">Micro aprobada con nota ≥ ${num('microAprobada')} <span class="muted">(una micro no rendida cuenta como no aprobada)</span></div>
+    <div class="row">Para ${esc(R.etqPromo)}: ${micro('microsPromoModo', 'microsPromoValor')}</div>
+    <div class="row">Para ${esc(R.etqReg)}: ${micro('microsRegModo', 'microsRegValor')}</div>
+    <div class="row"><label>${chk('microAusenteCero')} En el promedio de micros, la no rendida cuenta como 0</label></div>
+  </fieldset>
+  <fieldset><legend>Condiciones (se evalúan en este orden)</legend>
+    <div class="row">1. Sin ninguna nota registrada → ${txt('etqNoCurso')}</div>
+    <div class="row">2. Le falta la nota de algún parcial → ${txt('etqAband')}</div>
+    <div class="row">3. Algún parcial no aprobado → ${txt('etqLibre')}</div>
+    <div class="row">4. Parciales ≥ ${R.parcialPromo} y cumple micros → ${txt('etqPromo')}</div>
+    <div class="row">5. El resto (parciales aprobados) → ${txt('etqReg')}</div>
+    <div class="row">Nota final de ${esc(R.etqPromo)} = promedio de parciales, ${sel('redondeo', [['entero', 'redondeado a entero'], ['medio', 'redondeado a 0,5'], ['ninguno', 'sin redondear']])}</div>
+  </fieldset>`;
+}
+function setTabla(i, v) {
+  const n = parseFloat(String(v).replace(',', '.'));
+  if (isNaN(n)) return renderReglas();
+  cfg.reglas.tabla[i] = n;
+  const T = cfg.reglas.tabla;
+  if (T.some((m, j) => j > 0 && m <= T[j - 1])) alert('Atención: los porcentajes de la escala tienen que ir en aumento.');
+  guardar(); renderReglas(); recalcular();
+}
+
+/* ====================== cálculo ====================== */
+let resultado = {alumnos: [], incidencias: []};
+function redondear(n) {
+  if (n == null) return null;
+  const m = cfg.reglas.redondeo;
+  return m === 'entero' ? Math.round(n) : m === 'medio' ? Math.round(n * 2) / 2 : r2(n);
+}
+function calcular() {
+  const R = cfg.reglas, inc = [], mapa = new Map();
+  cfg.slots.forEach((s, i) => {
+    const d = datos[i];
+    if (!d) return;
+    if (!s.keyCol) { inc.push(`«${s.alias}»: falta elegir la columna de identificación; el archivo no se usa.`); return; }
+    const vistos = new Set();
+    d.rows.forEach(r => {
+      const crudo = r[s.keyCol], k = normKey(crudo);
+      if (!k) { inc.push(`«${s.alias}», fila ${r.__fila}: sin ${s.keyCol}; se ignora.`); return; }
+      if (typeof crudo === 'number' && !Number.isInteger(crudo))
+        inc.push(`«${s.alias}», fila ${r.__fila}: el ${s.keyCol} ${String(crudo).replace('.', ',')} quedó como número con decimales ` +
+                 `(probablemente se escribió con coma y Excel lo tomó como decimal). Corregilo en el Excel: no se va a cruzar bien.`);
+      if (vistos.has(k)) { inc.push(`«${s.alias}», fila ${r.__fila}: ${s.keyCol} ${str(crudo)} repetido; se usa la primera aparición.`); return; }
+      vistos.add(k);
+      let a = mapa.get(k);
+      if (!a) { a = {key: k, legajo: str(crudo), apellido: '', nombre: '', email: '', filas: {}}; mapa.set(k, a); }
+      a.filas[i] = r;
+      if (!a.apellido && s.apeCol) a.apellido = str(r[s.apeCol]);
+      if (!a.nombre && s.nomCol) a.nombre = str(r[s.nomCol]);
+      if (!a.email && s.mailCol) a.email = str(r[s.mailCol]);
+    });
+  });
+  const usados = cfg.slots.map((s, i) => datos[i] && s.keyCol ? i : -1).filter(i => i >= 0);
+  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
+  const micros = cfg.evals.filter(e => e.tipo === 'micro');
+  const recs = cfg.evals.filter(e => e.tipo === 'recuperatorio');
+  cfg.evals.forEach(e => {
+    if (e.slot < 0 || !cfg.slots[e.slot] || !e.col) inc.push(`Evaluación «${e.nombre}»: falta asignar archivo y columna.`);
+    else if (datos[e.slot] && !datos[e.slot].headers.includes(e.col)) inc.push(`Evaluación «${e.nombre}»: la columna «${e.col}» no está en «${cfg.slots[e.slot].alias}».`);
+  });
+  recs.forEach(r => { if (!parc.some(p => p.id === r.recuperaDe)) inc.push(`Recuperatorio «${r.nombre}»: falta indicar qué parcial recupera.`); });
+
+  // puntaje crudo -> % ; % -> nota 1..10 según la tabla de la cátedra
+  const crudo = (a, e) => (e.slot < 0 || !a.filas[e.slot] || !e.col) ? null : parseNota(a.filas[e.slot][e.col]);
+  const porcentaje = (a, e) => { const n = crudo(a, e); return n == null ? null : r2(n / (e.max || (e.conv === 'directa' ? 10 : 100)) * 100); };
+  const notaPorTabla = pct => {
+    const p = R.redondearPct ? Math.round(pct) : pct;
+    let nota = 1;
+    R.tabla.forEach((min, i) => { if (p >= min) nota = i + 1; });
+    return nota;
+  };
+  const valor = (a, e) => {
+    const n = crudo(a, e);
+    if (n == null) return null;
+    if (e.conv === 'directa') return r2(n / (e.max || 10) * 10);
+    return notaPorTabla(n / (e.max || 100) * 100);
+  };
+  const faltantes = {};
+  const alumnos = [...mapa.values()].map(a => {
+    usados.filter(i => !a.filas[i]).forEach(i => (faltantes[i] = faltantes[i] || []).push(a));
+    const v = {}, pct = {};
+    cfg.evals.forEach(e => { v[e.id] = valor(a, e); pct[e.id] = porcentaje(a, e); });
+    const pf = {}; let usoRec = false;
+    parc.forEach(p => {
+      let n = v[p.id];
+      recs.filter(r => r.recuperaDe === p.id).forEach(r => {
+        const rv = v[r.id];
+        if (rv == null) return;
+        if (R.recPolitica === 'mayor') { if (n == null || rv > n) { n = rv; usoRec = true; } }
+        else { n = rv; usoRec = true; }
+      });
+      pf[p.id] = n;
+    });
+    // micros
+    const mv = micros.map(m => v[m.id]);
+    const base = R.microAusenteCero ? mv.map(x => x ?? 0) : mv.filter(x => x != null);
+    const promMicros = r2(avg(base));
+    const microsAprob = mv.filter(x => x != null && x >= R.microAprobada).length;
+    const pctMicros = micros.length ? r2(microsAprob / micros.length * 100) : null;
+    const cumpleMicros = (modo, val) => {
+      if (!micros.length || modo === 'ninguno') return [true, ''];
+      if (modo === 'promedio') return [promMicros != null && promMicros >= val, `promedio de micros ${fmt(promMicros)} < ${val}`];
+      if (modo === 'cantidad') return [microsAprob >= val, `${microsAprob} micros aprobadas < ${val}`];
+      return [pctMicros >= val, `${fmt(pctMicros)}% de micros aprobadas < ${val}%`];
+    };
+    // condición (en este orden): No Cursó → Abandonó → Libre → Aprobación Directa → Regular
+    const sinNotas = cfg.evals.length > 0 && cfg.evals.every(e => v[e.id] == null);
+    const sinParcial = parc.filter(p => pf[p.id] == null);
+    const desaprobados = parc.filter(p => pf[p.id] != null && pf[p.id] < R.parcialAprobado);
+    const [mReg, mRegTxt] = cumpleMicros(R.microsRegModo, R.microsRegValor);
+    let cond, obs;
+    if (sinNotas) { cond = 'nocurso'; obs = 'sin notas registradas'; }
+    else if (sinParcial.length) {
+      cond = 'aband';
+      obs = 'sin nota en ' + sinParcial.map(p => p.nombre).join(' y ') + (sinParcial.length > 1 ? ' (ningún parcial rendido)' : '');
+    }
+    else if (desaprobados.length || !mReg) {
+      cond = 'libre';
+      obs = desaprobados.map(p => `${p.nombre}: ${fmt(pf[p.id])} < ${R.parcialAprobado}`).concat(mReg ? [] : [mRegTxt]).join('; ');
+    } else {
+      const faltan = parc.filter(p => pf[p.id] < R.parcialPromo).map(p => `${p.nombre}: ${fmt(pf[p.id])} < ${R.parcialPromo}`);
+      const [mPro, mProTxt] = cumpleMicros(R.microsPromoModo, R.microsPromoValor);
+      if (!mPro) faltan.push(mProTxt);
+      if (usoRec && !R.recPermitePromo) faltan.push('rindió recuperatorio');
+      if (!faltan.length) { cond = 'promo'; obs = ''; }
+      else { cond = 'reg'; obs = `No alcanza ${R.etqPromo}: ` + faltan.join('; '); }
+    }
+    const pfv = parc.map(p => pf[p.id]).filter(x => x != null);
+    const promParciales = r2(avg(pfv));
+    return {
+      ...a, v, pct, pf, usoRec, promMicros, microsAprob, pctMicros, promParciales, cond, obs,
+      notaFinal: cond === 'promo' && parc.length ? redondear(promParciales) : null,
+      condicion: etq(cond)
+    };
+  });
+  Object.entries(faltantes).forEach(([i, lista]) => {
+    inc.push(`${lista.length} alumno(s) no figuran en «${cfg.slots[i].alias}»: ` + lista.map(a => `${a.legajo} ${[a.apellido, a.nombre].filter(Boolean).join(' ')}`.trim()).join(' · '));
+  });
+  alumnos.sort((x, y) => (x.apellido + ' ' + x.nombre).localeCompare(y.apellido + ' ' + y.nombre, 'es') || x.legajo.localeCompare(y.legajo));
+  if (!parc.length && cfg.evals.length) inc.unshift('No hay parciales configurados: la condición se calcula sólo con las micros y no es definitiva.');
+  return {alumnos, incidencias: inc};
+}
+
+/* ====================== columnas de exportación ====================== */
+function catalogo() {
+  const c = [['legajo', 'Legajo'], ['apellido', 'Apellido'], ['nombre', 'Nombre'], ['email', 'Email'], ['comision', 'Comisión']];
+  cfg.evals.forEach(e => c.push(['ev:' + e.id, e.nombre]));
+  cfg.evals.filter(e => e.conv !== 'directa').forEach(e => c.push(['pc:' + e.id, `${e.nombre} (%)`]));
+  const recuperados = new Set(cfg.evals.filter(e => e.tipo === 'recuperatorio').map(e => e.recuperaDe));
+  cfg.evals.filter(e => e.tipo === 'parcial' && recuperados.has(e.id)).forEach(p => c.push(['pf:' + p.id, `${p.nombre} (con recup.)`]));
+  c.push(['promMicros', 'Promedio micros'], ['microsAprob', 'Micros aprobadas'], ['pctMicros', '% micros aprobadas'],
+         ['promParciales', 'Promedio parciales'], ['notaFinal', 'Nota final'], ['condicion', 'Condición'], ['observaciones', 'Observaciones']);
+  return c;
+}
+function valorCol(a, id) {
+  if (id.startsWith('ev:')) return a.v[id.slice(3)];
+  if (id.startsWith('pf:')) return a.pf[id.slice(3)];
+  if (id.startsWith('pc:')) return a.pct[id.slice(3)];
+  if (id === 'comision') return cfg.comision;
+  if (id === 'observaciones') return a.obs;
+  return a[id];
+}
+const nombreCol = id => cfg.exportNombres[id] || (catalogo().find(c => c[0] === id) || [id, id])[1];
+
+/* ====================== resultados ====================== */
+function recalcular() { resultado = calcular(); renderResultados(); renderExport(); }
+function renderResultados() {
+  const {alumnos, incidencias} = resultado;
+  if (!datos.some(Boolean)) { $('#resultados').innerHTML = '<div class="muted">Cargá al menos un archivo para ver los resultados.</div>'; return; }
+  const R = cfg.reglas, cnt = {}; CONDS.forEach(c => cnt[c] = 0);
+  alumnos.forEach(a => cnt[a.cond]++);
+  const evs = cfg.evals;
+  const recuperados = new Set(evs.filter(e => e.tipo === 'recuperatorio').map(e => e.recuperaDe));
+  const pfs = evs.filter(e => e.tipo === 'parcial' && recuperados.has(e.id));
+  $('#resultados').innerHTML = `
+    <div class="stats">
+      <div class="stat" style="background:#eef1f8"><span class="muted">Alumnos</span><b>${alumnos.length}</b></div>
+      ${CONDS.map(c => `<div class="stat ${CLASE[c]}"><span>${esc(etq(c))}</span><b>${cnt[c]}</b></div>`).join('')}
+    </div>
+    ${incidencias.length ? `<details class="warn"><summary>⚠ ${incidencias.length} aviso(s) para revisar</summary><ul>${incidencias.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    <div class="row">
+      <input type="search" placeholder="Buscar legajo, apellido…" value="${esc(filtro.q)}" oninput="filtro.q=this.value;renderTablaSolo()">
+      <select onchange="filtro.cond=this.value;renderTablaSolo()">${opciones(CONDS.map(c => [c, etq(c)]), filtro.cond, 'Todas las condiciones')}</select>
+      <span class="muted" id="cuentaVis"></span>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Legajo</th><th>Apellido y nombre</th>${evs.map(e => `<th title="${esc(e.tipo)}">${esc(e.nombre)}</th>`).join('')}
+        ${pfs.map(p => `<th>${esc(p.nombre)} (c/recup.)</th>`).join('')}
+        <th>Prom. micros</th><th>Micros aprob.</th><th>Prom. parciales</th><th>Nota final</th><th>Condición</th><th>Observaciones</th></tr></thead>
+      <tbody id="tbody"></tbody></table></div>`;
+  renderTablaSolo();
+}
+function renderTablaSolo() {
+  const {alumnos} = resultado;
+  if (!$('#tbody')) return;
+  const q = filtro.q.toLowerCase();
+  const vis = alumnos.filter(a => (!filtro.cond || a.cond === filtro.cond) &&
+    (!q || `${a.legajo} ${a.apellido} ${a.nombre} ${a.email}`.toLowerCase().includes(q)));
+  const evs = cfg.evals;
+  const recuperados = new Set(evs.filter(e => e.tipo === 'recuperatorio').map(e => e.recuperaDe));
+  const pfs = evs.filter(e => e.tipo === 'parcial' && recuperados.has(e.id));
+  const clase = CLASE;
+  $('#tbody').innerHTML = vis.map(a => `<tr>
+    <td>${esc(a.legajo)}</td><td>${esc([a.apellido, a.nombre].filter(Boolean).join(', '))}</td>
+    ${evs.map(e => `<td class="n" title="${a.pct[e.id] == null ? 'sin nota' : fmt(a.pct[e.id]) + '%'}">${fmt(a.v[e.id])}</td>`).join('')}
+    ${pfs.map(p => `<td class="n">${fmt(a.pf[p.id])}</td>`).join('')}
+    <td class="n">${fmt(a.promMicros)}</td><td class="n">${evs.some(e => e.tipo === 'micro') ? a.microsAprob + '/' + evs.filter(e => e.tipo === 'micro').length : '—'}</td>
+    <td class="n">${fmt(a.promParciales)}</td><td class="n"><b>${fmt(a.notaFinal)}</b></td>
+    <td><span class="tag ${clase[a.cond]}">${esc(a.condicion)}</span></td><td class="muted">${esc(a.obs)}</td></tr>`).join('');
+  $('#cuentaVis').textContent = `${vis.length} de ${alumnos.length}`;
+}
+
+/* ====================== exportación ====================== */
+function setExportCol(accion, id, extra) {
+  const L = cfg.exportCols, i = L.indexOf(id);
+  if (accion === 'agregar' && id && i < 0) L.push(id);
+  if (accion === 'quitar') L.splice(i, 1);
+  if (accion === 'subir' && i > 0) [L[i - 1], L[i]] = [L[i], L[i - 1]];
+  if (accion === 'bajar' && i < L.length - 1) [L[i + 1], L[i]] = [L[i], L[i + 1]];
+  if (accion === 'renombrar') { if (extra.trim()) cfg.exportNombres[id] = extra.trim(); else delete cfg.exportNombres[id]; }
+  guardar(); renderExport();
+}
+function renderExport() {
+  const cat = catalogo(), ids = new Set(cat.map(c => c[0]));
+  cfg.exportCols = cfg.exportCols.filter(id => ids.has(id));
+  const disp = cat.filter(c => !cfg.exportCols.includes(c[0]));
+  const hay = resultado.alumnos.length > 0;
+  $('#exportar').innerHTML = `
+  <div class="grid">
+    <fieldset><legend>Planilla para el sistema</legend>
+      <div class="muted">Elegí las columnas, su orden y el título que pide el sistema.</div>
+      <ul class="cols">${cfg.exportCols.map(id => `<li>
+        <button class="mini" onclick="setExportCol('subir','${id}')">↑</button><button class="mini" onclick="setExportCol('bajar','${id}')">↓</button>
+        <input type="text" value="${esc(nombreCol(id))}" title="Título de la columna en el archivo" onchange="setExportCol('renombrar','${id}',this.value)">
+        <span class="muted">${esc((cat.find(c => c[0] === id) || ['', ''])[1])}</span>
+        <button class="mini danger" onclick="setExportCol('quitar','${id}')">✕</button></li>`).join('')}</ul>
+      <div class="row"><select onchange="setExportCol('agregar',this.value)">${opciones(disp, '', '+ agregar columna…')}</select>
+        <label>Formato: <select onchange="cfg.formatoSistema=this.value;guardar()">${opciones([['xlsx', 'Excel (.xlsx)'], ['csv', 'CSV separado por ;']], cfg.formatoSistema, null)}</select></label></div>
+    </fieldset>
+    <fieldset><legend>Descargar</legend>
+      <div class="row"><button class="prim" onclick="exportar('sistema')" ${hay ? '' : 'disabled'}>Planilla para el sistema</button></div>
+      <div class="row"><button class="prim" onclick="exportar('detalle')" ${hay ? '' : 'disabled'}>Detalle para docentes</button>
+        <span class="muted">todas las notas, condición, observaciones, avisos y reglas usadas</span></div>
+      <div class="row"><button onclick="exportar('ambos')" ${hay ? '' : 'disabled'}>Un solo Excel con todo</button></div>
+      <div class="info">Para compartir con los demás docentes, subí el <b>detalle</b> a la carpeta de Drive del curso.</div>
+    </fieldset>
+  </div>`;
+}
+function hojaNotas(cols, alumnos, titulosSistema = true) {
+  const titulo = id => titulosSistema ? nombreCol(id) : (catalogo().find(c => c[0] === id) || [id, id])[1];
+  const aoa = [cols.map(titulo)];
+  alumnos.forEach(a => aoa.push(cols.map(id => { const x = valorCol(a, id); return x == null ? '' : x; })));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = cols.map(id => ({wch: Math.min(60, Math.max(10, titulo(id).length + 2, ...alumnos.map(a => String(valorCol(a, id) ?? '').length + 1)))}));
+  ws['!autofilter'] = {ref: XLSX.utils.encode_range({s: {r: 0, c: 0}, e: {r: alumnos.length, c: cols.length - 1}})};
+  return ws;
+}
+function hojasDetalle(wb) {
+  const R = cfg.reglas, {alumnos, incidencias} = resultado;
+  XLSX.utils.book_append_sheet(wb, hojaNotas(catalogo().map(c => c[0]), alumnos, false), 'Detalle');
+  const cnt = {}; CONDS.forEach(c => cnt[c] = 0); alumnos.forEach(a => cnt[a.cond]++);
+  const modo = (m, v) => m === 'ninguno' ? 'sin requisito' : (MODOS.find(x => x[0] === m)[1] + ' ' + v);
+  const conf = [
+    ['Comisión', cfg.comision], ['Generado', new Date().toLocaleString('es-AR')], [],
+    ['Resumen'], ['Alumnos', alumnos.length], ...CONDS.map(c => [etq(c), cnt[c]]), [],
+    ['Escala (nota: desde %)'], ...R.tabla.map((m, i) => [`Nota ${i + 1}`, `${m}%`]),
+    ['Redondear % antes de la tabla', R.redondearPct ? 'sí' : 'no'], [],
+    ['Reglas'], ['Parcial aprobado con nota ≥', R.parcialAprobado], [`${R.etqPromo}: cada parcial ≥`, R.parcialPromo],
+    ['Recuperatorio', R.recPolitica === 'reemplaza' ? 'reemplaza siempre la nota del parcial' : 'queda la mayor entre parcial y recuperatorio'],
+    [`Parcial recuperado permite ${R.etqPromo}`, R.recPermitePromo ? 'sí' : 'no'],
+    ['Micro aprobada con nota ≥', R.microAprobada],
+    [`Micros para ${R.etqPromo}`, modo(R.microsPromoModo, R.microsPromoValor)], [`Micros para ${R.etqReg}`, modo(R.microsRegModo, R.microsRegValor)],
+    ['Orden', `${R.etqNoCurso} (sin notas) → ${R.etqAband} (falta un parcial) → ${R.etqLibre} (parcial no aprobado) → ${R.etqPromo} → ${R.etqReg}`],
+    ['Nota final', 'promedio de parciales, ' + ({entero: 'redondeado a entero', medio: 'redondeado a 0,5', ninguno: 'sin redondear'})[R.redondeo]], [],
+    ['Evaluaciones', 'Tipo', 'Archivo', 'Columna', 'Conversión', 'Puntaje máx.', 'Recupera a'],
+    ...cfg.evals.map(e => [e.nombre, e.tipo, (cfg.slots[e.slot] || {}).alias || '', e.col, e.conv === 'directa' ? 'ya es nota' : 'por tabla', e.max, (cfg.evals.find(p => p.id === e.recuperaDe) || {}).nombre || '']), [],
+    ['Archivos usados'], ...cfg.slots.map((s, i) => [s.alias, datos[i] ? datos[i].fileName : '(no cargado)'])
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(conf); ws['!cols'] = [{wch: 40}, {wch: 30}, {wch: 22}, {wch: 40}, {wch: 10}, {wch: 20}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Resumen y reglas');
+  const wi = XLSX.utils.aoa_to_sheet([['Avisos'], ...(incidencias.length ? incidencias.map(x => [x]) : [['Sin avisos']])]);
+  wi['!cols'] = [{wch: 120}];
+  XLSX.utils.book_append_sheet(wb, wi, 'Avisos');
+}
+function exportar(tipo) {
+  if (!cfg.exportCols.length && tipo !== 'detalle') return alert('Elegí al menos una columna para la planilla del sistema.');
+  if (resultado.incidencias.length && !confirm(`Hay ${resultado.incidencias.length} aviso(s) sin revisar (ver Resultados). ¿Exportar igual?`)) return;
+  const base = `Notas_${(cfg.comision || 'comision').replace(/[^\w\-]+/g, '_')}_${hoy()}`;
+  const {alumnos} = resultado;
+  if (tipo === 'sistema') {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hojaNotas(cfg.exportCols, alumnos), 'Notas');
+    if (cfg.formatoSistema === 'csv') XLSX.writeFile(wb, base + '_sistema.csv', {bookType: 'csv', FS: ';'});
+    else XLSX.writeFile(wb, base + '_sistema.xlsx');
+  } else if (tipo === 'detalle') {
+    const wb = XLSX.utils.book_new(); hojasDetalle(wb); XLSX.writeFile(wb, base + '_detalle.xlsx');
+  } else {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, hojaNotas(cfg.exportCols, alumnos), 'Para el sistema');
+    hojasDetalle(wb); XLSX.writeFile(wb, base + '.xlsx');
+  }
+}
+
+/* ====================== inicio ====================== */
+function renderTodo() { renderPerfil(); renderSlots(); renderEvals(); renderReglas(); recalcular(); renderExport(); }
+window.addEventListener('DOMContentLoaded', () => {
+  if (typeof XLSX === 'undefined') {
+    document.querySelector('main').insertAdjacentHTML('afterbegin', '<div class="warn"><b>No se pudo cargar la librería de Excel (SheetJS).</b> Revisá la conexión a internet y recargá la página.</div>');
+  }
+  const ult = localStorage.getItem(LS_ULTIMO);
+  if (ult && perfiles[ult]) cfg = normalizarCfg(clone(perfiles[ult]));
+  renderTodo();
+});
+</script>
+</body>
+</html>
