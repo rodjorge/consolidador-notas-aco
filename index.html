@@ -191,7 +191,6 @@ const REGLAS_DEF = {
   recPolitica: 'mayor', recPermitePromo: true,
   microAprobada: 4, microAusenteUno: true,
   microsRegModo: 'ninguno', microsRegValor: 0,
-  microsPromoModo: 'porcentaje', microsPromoValor: 75,
   redondeo: 'entero',
   etqPromo: 'Aprobación Directa', etqReg: 'Regular', etqLibre: 'Libre', etqAband: 'Abandonó', etqNoCurso: 'No Cursó'
 };
@@ -206,7 +205,7 @@ const nuevaConfig = () => {
   const c = {
   comision: '',
   slots: [nuevoSlot('Microevaluaciones'), nuevoSlot('Parcial 1'), nuevoSlot('Parcial 2')],
-  cantMicros: 4, cantParciales: 2,
+  cantMicros: 4, cantParciales: 2, minMicros: null,   // null = automático (75% truncado)
   evals: [],
   reglas: {...REGLAS_DEF},
   exportCols: ['legajo', 'apellido', 'nombre', 'condicion', 'notaFinal'],
@@ -417,10 +416,21 @@ function sincronizarEstructura(c = cfg) {
   });
   c.evals = evals;
 }
+// Mínimo de micros aprobadas para Aprobación Directa: por defecto el 75% de la cantidad, truncado hacia abajo
+// (3 micros -> 2,25 -> 2; 4 -> 3; 5 -> 3,75 -> 3). Se puede fijar a mano por comisión.
+const PCT_MIN_MICROS = 75;
+const minMicrosAuto = () => Math.floor(cfg.cantMicros * PCT_MIN_MICROS / 100 + 1e-9);
+const minMicros = () => cfg.minMicros == null ? minMicrosAuto() : Math.min(cfg.minMicros, cfg.cantMicros);
+function setMinMicros(valor) {
+  const n = parseInt(valor);
+  cfg.minMicros = (valor === '' || isNaN(n)) ? null : Math.max(0, Math.min(n, cfg.cantMicros));
+  guardar(); renderEvals(); renderReglas(); recalcular();
+}
 function setCantidad(campo, valor) {
   const antes = cfg[campo];
   cfg[campo] = parseInt(valor) || 0;
   sincronizarEstructura();
+  if (campo === 'cantMicros') renderReglas();
   const perdidas = campo === 'cantMicros' && cfg.cantMicros < antes;
   guardar(); renderEvals(); renderExport(); recalcular();
   if (perdidas) document.getElementById('cantMicros').focus();
@@ -513,7 +523,13 @@ function renderEvals() {
     <div class="row">
       <label>Cantidad de microevaluaciones: <input type="number" id="cantMicros" min="0" max="40" value="${cfg.cantMicros}" onchange="setCantidad('cantMicros',this.value)"></label>
       <label>Cantidad de parciales: <input type="number" min="1" max="6" value="${cfg.cantParciales}" onchange="setCantidad('cantParciales',this.value)"></label>
-      <span class="muted">El % de micros aprobadas se calcula sobre la cantidad configurada.</span>
+    </div>
+    <div class="row minimo">
+      <label><b>Cantidad mínima de microevaluaciones aprobadas</b> (para ${esc(cfg.reglas.etqPromo)}):
+        <input type="number" id="minMicros" min="0" max="${cfg.cantMicros}" value="${minMicros()}" onchange="setMinMicros(this.value)"></label>
+      ${cfg.minMicros == null
+        ? `<span class="muted">automático: ${PCT_MIN_MICROS}% de ${cfg.cantMicros} = ${fmt(cfg.cantMicros * PCT_MIN_MICROS / 100)} → ${minMicros()} (truncado hacia abajo)</span>`
+        : `<span class="muted">valor manual</span> <button class="mini" onclick="setMinMicros('')">Volver al ${PCT_MIN_MICROS}% automático (${minMicrosAuto()})</button>`}
     </div>
     <div class="row">
       ${cfg.slots.map((s, i) => `<button class="mini btn-color" style="--c:${colorSlot(i)}" onclick="autodetectar(${i})" ${datos[i] ? '' : 'disabled'}>Autodetectar en «${esc(s.alias)}»</button>`).join('')}
@@ -557,15 +573,15 @@ function renderReglas() {
   </fieldset>
   <fieldset><legend>Microevaluaciones</legend>
     <div class="row">Micro aprobada con nota ≥ ${num('microAprobada')} <span class="muted">(una micro no rendida cuenta como no aprobada)</span></div>
-    <div class="row">Para ${esc(R.etqPromo)}: ${micro('microsPromoModo', 'microsPromoValor')}</div>
+    <div class="row">Para ${esc(R.etqPromo)}: al menos <b>${minMicros()}</b> de ${cfg.cantMicros} micros aprobadas <span class="muted">(se configura en la sección 3)</span></div>
     <div class="row">Para ${esc(R.etqReg)}: ${micro('microsRegModo', 'microsRegValor')}</div>
     <div class="row"><label>${chk('microAusenteUno')} En el promedio de micros, la no rendida cuenta como 1 (nota mínima)</label></div>
   </fieldset>
   <fieldset><legend>Condiciones (se evalúan en este orden)</legend>
-    <div class="row">1. Sin ninguna nota registrada → ${txt('etqNoCurso')}</div>
+    <div class="row">1. Sin notas de parciales y todas las micros sin rendir o con 0/1 → ${txt('etqNoCurso')}</div>
     <div class="row">2. Le falta la nota de algún parcial → ${txt('etqAband')}</div>
     <div class="row">3. Algún parcial no aprobado → ${txt('etqLibre')}</div>
-    <div class="row">4. Parciales ≥ ${R.parcialPromo} y cumple micros → ${txt('etqPromo')}</div>
+    <div class="row">4. Parciales ≥ ${R.parcialPromo} y al menos ${minMicros()} micros aprobadas → ${txt('etqPromo')}</div>
     <div class="row">5. El resto (parciales aprobados) → ${txt('etqReg')}</div>
     <div class="row">Nota final de ${esc(R.etqPromo)} = promedio de parciales, ${sel('redondeo', [['entero', 'redondeado a entero'], ['medio', 'redondeado a 0,5'], ['ninguno', 'sin redondear']])}</div>
   </fieldset>`;
@@ -668,12 +684,15 @@ function calcular() {
       return [pctMicros >= val, `${fmt(pctMicros)}% de micros aprobadas < ${val}%`];
     };
     // condición (en este orden): No Cursó → Abandonó → Libre → Aprobación Directa → Regular
-    const sinNotas = cfg.evals.length > 0 && cfg.evals.every(e => v[e.id] == null);
+    // No Cursó: ninguna nota de parcial ni recuperatorio, y las micros sin rendir o con 0/1 (no las hizo)
+    const sinNotas = cfg.evals.length > 0
+      && cfg.evals.filter(e => e.tipo !== 'micro').every(e => v[e.id] == null)
+      && mv.every(x => x == null || x <= 1);
     const sinParcial = parc.filter(p => pf[p.id] == null);
     const desaprobados = parc.filter(p => pf[p.id] != null && pf[p.id] < R.parcialAprobado);
     const [mReg, mRegTxt] = cumpleMicros(R.microsRegModo, R.microsRegValor);
     let cond, obs;
-    if (sinNotas) { cond = 'nocurso'; obs = 'sin notas registradas'; }
+    if (sinNotas) { cond = 'nocurso'; obs = mv.some(x => x != null) ? 'sin parciales y micros con 0/1' : 'sin notas registradas'; }
     else if (sinParcial.length) {
       cond = 'aband';
       obs = 'sin nota en ' + sinParcial.map(p => p.nombre).join(' y ') + (sinParcial.length > 1 ? ' (ningún parcial rendido)' : '');
@@ -683,8 +702,8 @@ function calcular() {
       obs = desaprobados.map(p => `${p.nombre}: ${fmt(pf[p.id])} < ${R.parcialAprobado}`).concat(mReg ? [] : [mRegTxt]).join('; ');
     } else {
       const faltan = parc.filter(p => pf[p.id] < R.parcialPromo).map(p => `${p.nombre}: ${fmt(pf[p.id])} < ${R.parcialPromo}`);
-      const [mPro, mProTxt] = cumpleMicros(R.microsPromoModo, R.microsPromoValor);
-      if (!mPro) faltan.push(mProTxt);
+      const minimo = minMicros();
+      if (micros.length && microsAprob < minimo) faltan.push(`${microsAprob} micros aprobadas, mínimo ${minimo}`);
       if (usoRec && !R.recPermitePromo) faltan.push('rindió recuperatorio');
       if (!faltan.length) { cond = 'promo'; obs = ''; }
       else { cond = 'reg'; obs = `No alcanza ${R.etqPromo}: ` + faltan.join('; '); }
@@ -806,7 +825,6 @@ function renderExport() {
       <div class="row"><button class="prim" onclick="exportar('detalle')" ${hay ? '' : 'disabled'}>Detalle para docentes</button>
         <span class="muted">todas las notas, condición, observaciones, avisos y reglas usadas</span></div>
       <div class="row"><button onclick="exportar('ambos')" ${hay ? '' : 'disabled'}>Un solo Excel con todo</button></div>
-      <div class="info">Para compartir con los demás docentes, subí el <b>detalle</b> a la carpeta de Drive del curso.</div>
     </fieldset>
   </div>`;
 }
@@ -835,7 +853,7 @@ function hojasDetalle(wb) {
     ['Recuperatorio', R.recPolitica === 'reemplaza' ? 'reemplaza siempre la nota del parcial' : 'queda la mayor entre parcial y recuperatorio'],
     [`Parcial recuperado permite ${R.etqPromo}`, R.recPermitePromo ? 'sí' : 'no'],
     ['Micro aprobada con nota ≥', R.microAprobada],
-    [`Micros para ${R.etqPromo}`, modo(R.microsPromoModo, R.microsPromoValor)], [`Micros para ${R.etqReg}`, modo(R.microsRegModo, R.microsRegValor)],
+    [`Micros aprobadas mínimas para ${R.etqPromo}`, minMicros() + (cfg.minMicros == null ? ` (automático: ${PCT_MIN_MICROS}% de ${cfg.cantMicros}, truncado)` : ' (manual)')], [`Micros para ${R.etqReg}`, modo(R.microsRegModo, R.microsRegValor)],
     ['Orden', `${R.etqNoCurso} (sin notas) → ${R.etqAband} (falta un parcial) → ${R.etqLibre} (parcial no aprobado) → ${R.etqPromo} → ${R.etqReg}`],
     ['Nota final', 'promedio de parciales, ' + ({entero: 'redondeado a entero', medio: 'redondeado a 0,5', ninguno: 'sin redondear'})[R.redondeo]], [],
     ['Evaluaciones', 'Tipo', 'Archivo', 'Columna', 'Tipo de nota', 'Máximo', 'Recupera a'],

@@ -37,16 +37,17 @@ Página para unir las notas de **Moodle** (microevaluaciones, parciales) con las
 
 - Parcial y microevaluación **aprobados con nota 4** o más (55 % o más).
 - Entre un parcial y su recuperatorio **queda siempre la nota mayor**.
-- El % de micros aprobadas se calcula sobre la cantidad de micros configurada; una micro no rendida no está aprobada y, en el promedio de micros, cuenta como **1** (la nota mínima).
+- **Mínimo de micros aprobadas** para Aprobación Directa: por defecto el 75 % de la cantidad de micros, **truncado hacia abajo** (3 micros → 2,25 → 2; 4 → 3; 5 → 3). Se puede fijar a mano en la sección 3.
+- Una micro no rendida no está aprobada y, en el promedio de micros, cuenta como **1** (la nota mínima).
 
 **Condición**, evaluada en este orden:
 
 | # | Situación | Condición |
 |---|---|---|
-| 1 | Sin ninguna nota registrada | No Cursó |
+| 1 | Sin notas de parciales y todas las micros sin rendir o con 0/1 | No Cursó |
 | 2 | Falta la nota de algún parcial | Abandonó |
 | 3 | Algún parcial con menos de 4 | Libre |
-| 4 | Ambos parciales con 7 o más y al menos el 75 % de las micros aprobadas | Aprobación Directa |
+| 4 | Ambos parciales con 7 o más y el mínimo de micros aprobadas | Aprobación Directa |
 | 5 | El resto (parciales aprobados) | Regular |
 
 La nota final de Aprobación Directa es el promedio de los parciales redondeado al entero.
