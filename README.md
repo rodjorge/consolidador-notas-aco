@@ -16,10 +16,10 @@ Página para unir las notas de **Moodle** (microevaluaciones, parciales) con las
 ## Cómo se usa
 
 1. **Comisión:** escribí el nombre (por ej. `1K1`). La configuración se guarda sola. Con *Duplicar* la copiás para otra comisión, y con *Exportar/Importar configuración* (.json) la compartís con otros docentes.
-2. **Archivos:** cargá el export de Moodle (*Calificaciones → Exportar → Hoja de cálculo Excel*) y los Excel de los exámenes en papel. Elegí en cada uno la columna que identifica al estudiante (legajo, DNI o email). El legajo se cruza aunque esté escrito con punto, coma o espacios.
-3. **Evaluaciones:** con *Autodetectar* se proponen las columnas de Moodle. Indicá para cada una si es micro, parcial o recuperatorio, y cuál es su conversión:
-   - *puntaje → % → escala*: cuestionarios de Moodle (puntaje sobre 100, 10, etc.).
-   - *ya es nota (1 a 10)*: notas que ya están puestas, como las de los exámenes en papel.
+2. **Archivos:** cargá el export de Moodle (*Calificaciones → Exportar → Hoja de cálculo Excel*) y los Excel de los exámenes en papel. En cada uno indicá la columna del **legajo** (con ella se cruzan los archivos) y la del **apellido y nombre**, que pueden estar juntos o en dos columnas. El legajo se cruza aunque esté escrito con punto, coma o espacios.
+3. **Evaluaciones:** con *Autodetectar* se proponen las columnas de Moodle. Indicá para cada una si es micro, parcial o recuperatorio, y su **tipo de nota**:
+   - *Nota Moodle*: puntaje de un cuestionario (sobre 100, 10, etc.); se pasa a porcentaje y de ahí a nota con la escala.
+   - *Nota final*: la nota ya está puesta (por ejemplo, en el Excel del examen en papel) y se usa tal cual, sin convertir.
 4. **Reglas:** vienen cargadas las de la cátedra (ver abajo). Se pueden cambiar por comisión.
 5. **Resultados:** muestra cuántos estudiantes quedan en cada condición, una observación por estudiante y avisos para revisar (por ejemplo, estudiantes que faltan en algún archivo o legajos mal cargados).
 6. **Exportar:**
