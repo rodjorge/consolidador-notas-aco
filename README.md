@@ -16,8 +16,8 @@ Página para unir las notas de **Moodle** (microevaluaciones, parciales) con las
 ## Cómo se usa
 
 1. **Comisión:** escribí el nombre (por ej. `1K1`). La configuración se guarda sola. Con *Duplicar* la copiás para otra comisión, y con *Exportar/Importar configuración* (.json) la compartís con otros docentes.
-2. **Archivos:** cargá el export de Moodle (*Calificaciones → Exportar → Hoja de cálculo Excel*) y los Excel de los exámenes en papel. En cada uno indicá la columna del **legajo** (con ella se cruzan los archivos) y la del **apellido y nombre**, que pueden estar juntos o en dos columnas. El legajo se cruza aunque esté escrito con punto, coma o espacios.
-3. **Evaluaciones:** con *Autodetectar* se proponen las columnas de Moodle. Indicá para cada una si es micro, parcial o recuperatorio, y su **tipo de nota**:
+2. **Archivos:** vienen tres por defecto, *Microevaluaciones*, *Parcial 1* y *Parcial 2*, cada uno con su color; se pueden renombrar, quitar o agregar más. Cargá el export de Moodle (*Calificaciones → Exportar → Hoja de cálculo Excel*) y los Excel de los exámenes en papel. En cada uno indicá la columna del **legajo** (con ella se cruzan los archivos) y la del **apellido y nombre**, que pueden estar juntos o en dos columnas. El legajo se cruza aunque esté escrito con punto, coma o espacios.
+3. **Evaluaciones:** configurá la **cantidad de microevaluaciones** (varía por curso) y la **cantidad de parciales** (en la cátedra, 2). Cada parcial tiene un **recuperatorio opcional**: el estudiante puede recuperar ambos parciales, uno o ninguno. Para cada fila elegí de qué archivo y qué columna sale la nota; la fila toma el color de su archivo. *Autodetectar* asigna solas las columnas que reconoce. El tipo de nota de cada una puede ser:
    - *Nota Moodle*: puntaje de un cuestionario (sobre 100, 10, etc.); se pasa a porcentaje y de ahí a nota con la escala.
    - *Nota final*: la nota ya está puesta (por ejemplo, en el Excel del examen en papel) y se usa tal cual, sin convertir.
 4. **Reglas:** vienen cargadas las de la cátedra (ver abajo). Se pueden cambiar por comisión.
@@ -37,6 +37,7 @@ Página para unir las notas de **Moodle** (microevaluaciones, parciales) con las
 
 - Parcial y microevaluación **aprobados con nota 4** o más (55 % o más).
 - Entre un parcial y su recuperatorio **queda siempre la nota mayor**.
+- El % de micros aprobadas se calcula sobre la cantidad de micros configurada; una micro no rendida no está aprobada y, en el promedio de micros, cuenta como **1** (la nota mínima).
 
 **Condición**, evaluada en este orden:
 

@@ -52,6 +52,18 @@ main{overflow-x:hidden}
 .btn-archivo:hover{background:#0f2c94}
 .archivo-ok{color:var(--ok);font-weight:600}
 fieldset{min-width:0}
+/* color por archivo */
+.slot,.slot.ok{border-left:6px solid var(--c,#98a2b3)}
+.chip-archivo{display:inline-block;background:var(--c);color:#fff;border-radius:4px;padding:2px 9px;font-weight:600;font-size:13px}
+.ev-fila td{background:var(--t)}
+.ev-fila td.ev-color{width:6px;padding:0;background:var(--c)}
+.ev-fila .sel-archivo{border:2px solid var(--c);font-weight:600;color:var(--c)}
+.ev-fila input[type=text]{width:150px}
+.ev-grupo td{background:#eef1f8;font-weight:600;color:var(--azul-osc);font-size:12px;padding:4px 8px;text-transform:uppercase;letter-spacing:.03em}
+.leyenda{gap:14px;font-size:12px;color:#475467}
+.leyenda i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.btn-color{border-color:var(--c);color:var(--c)}
+th.th-color{box-shadow:inset 0 3px 0 var(--c)}
 .scroll{max-height:520px;overflow:auto;border:1px solid #e6e9f0;border-radius:6px}
 .warn{background:#fff8e6;border:1px solid #f0d58a;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:13px}
 .info{background:#eef3ff;border:1px solid #c9d6fb;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:13px}
@@ -103,7 +115,7 @@ code{background:#eef1f8;padding:0 4px;border-radius:3px}
 
 <section class="card">
   <h2><span class="num">3</span>Evaluaciones</h2>
-  <div class="muted">Indicá qué columna corresponde a cada micro, parcial o recuperatorio. Con <i>Autodetectar</i> se proponen las columnas de cuestionarios de Moodle.</div>
+  <div class="muted">Para cada micro, parcial y recuperatorio elegí de qué <b>archivo</b> y qué <b>columna</b> sale la nota. Cada fila toma el color de su archivo. Con <i>Autodetectar</i> se asignan solas las columnas que se reconocen. Los recuperatorios son opcionales: el estudiante que no rindió uno conserva la nota del parcial.</div>
   <div id="evals"></div>
 </section>
 
@@ -177,7 +189,7 @@ const REGLAS_DEF = {
   redondearPct: true,
   parcialAprobado: 4, parcialPromo: 7,
   recPolitica: 'mayor', recPermitePromo: true,
-  microAprobada: 4, microAusenteCero: true,
+  microAprobada: 4, microAusenteUno: true,
   microsRegModo: 'ninguno', microsRegValor: 0,
   microsPromoModo: 'porcentaje', microsPromoValor: 75,
   redondeo: 'entero',
@@ -187,15 +199,23 @@ const CONDS = ['promo', 'reg', 'libre', 'aband', 'nocurso'];
 const CLASE = {promo: 'c-promo', reg: 'c-reg', libre: 'c-libre', aband: 'c-aband', nocurso: 'c-nocurso'};
 const etq = c => cfg.reglas[{promo: 'etqPromo', reg: 'etqReg', libre: 'etqLibre', aband: 'etqAband', nocurso: 'etqNoCurso'}[c]];
 const nuevoSlot = alias => ({alias, sheet: '', headerRow: 0, keyCol: '', apeCol: '', nomCol: ''});
-const nuevaConfig = () => ({
+// Un color por archivo, para ver de dónde sale cada evaluación.
+const COLORES = ['#1538B8', '#0f8a5f', '#c25e00', '#8e3fb8', '#c0262d', '#0b7d99', '#7a6a00'];
+const colorSlot = i => i >= 0 && i < (cfg.slots || []).length ? COLORES[i % COLORES.length] : '#98a2b3';
+const nuevaConfig = () => {
+  const c = {
   comision: '',
-  slots: [nuevoSlot('Moodle'), nuevoSlot('1er parcial (papel)')],
+  slots: [nuevoSlot('Microevaluaciones'), nuevoSlot('Parcial 1'), nuevoSlot('Parcial 2')],
+  cantMicros: 4, cantParciales: 2,
   evals: [],
   reglas: {...REGLAS_DEF},
   exportCols: ['legajo', 'apellido', 'nombre', 'condicion', 'notaFinal'],
   exportNombres: {},
   formatoSistema: 'xlsx'
-});
+  };
+  sincronizarEstructura(c);
+  return c;
+};
 let perfiles = {};
 try { perfiles = JSON.parse(localStorage.getItem(LS_PERFILES) || '{}'); } catch { perfiles = {}; }
 let cfg = nuevaConfig();
@@ -203,11 +223,15 @@ let datos = [];            // por slot: {fileName, wb, headers, rows, headerIdx}
 let filtro = {cond: '', q: ''};
 
 function normalizarCfg(c) {
-  const base = nuevaConfig();
-  c = Object.assign(base, c);
+  const evals = c.evals || [];
+  // configuraciones guardadas antes de que existieran las cantidades: se toman de lo que había
+  if (c.cantMicros == null) c.cantMicros = evals.filter(e => e.tipo === 'micro').length || 4;
+  if (c.cantParciales == null) c.cantParciales = evals.filter(e => e.tipo === 'parcial').length || 2;
+  c = Object.assign(nuevaConfig(), c);
+  c.evals = evals;
   c.reglas = Object.assign({...REGLAS_DEF}, c.reglas || {});
   c.slots = (c.slots || []).map(s => Object.assign(nuevoSlot(''), s));
-  c.evals = c.evals || [];
+  sincronizarEstructura(c);
   return c;
 }
 function guardar() {
@@ -357,9 +381,9 @@ function renderSlots() {
     } else if (s.keyCol) {
       det = `<div class="muted">Esperado: legajo en <code>${esc(s.keyCol)}</code>${s.sheet ? `, hoja <code>${esc(s.sheet)}</code>` : ''}.</div>`;
     }
-    return `<div class="slot ${d ? 'ok' : ''}">
+    return `<div class="slot ${d ? 'ok' : ''}" style="--c:${colorSlot(i)}">
       <div class="row">
-        <b>Archivo ${i + 1}</b>
+        <span class="chip-archivo">Archivo ${i + 1}</span>
         <input type="text" value="${esc(s.alias)}" title="Nombre para identificar este archivo" onchange="setSlot(${i},'alias',this.value)">
         <label class="btn-archivo">${d ? 'Cambiar archivo…' : 'Elegir archivo…'}
           <input type="file" accept=".xlsx,.xls,.ods,.csv" hidden onchange="cargar(${i}, this.files[0]); this.value=''"></label>
@@ -371,14 +395,35 @@ function renderSlots() {
 }
 
 /* ====================== evaluaciones ====================== */
-const TIPOS = [['micro', 'Microevaluación'], ['parcial', 'Parcial'], ['recuperatorio', 'Recuperatorio']];
 const CONVS = [['tabla', 'Nota Moodle (puntaje → tabla)'], ['directa', 'Nota final (sin convertir)']];
-function agregarEval(tipo = 'micro') {
-  const n = cfg.evals.filter(e => e.tipo === tipo).length + 1;
-  const nombre = tipo === 'micro' ? `Micro ${n}` : tipo === 'parcial' ? `Parcial ${n}` : `Recuperatorio ${n}`;
-  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
-  cfg.evals.push({id: uid(), nombre, tipo, slot: 0, col: '', max: 100, conv: 'tabla', recuperaDe: tipo === 'recuperatorio' && parc[0] ? parc[0].id : ''});
-  guardar(); renderEvals(); recalcular();
+// La estructura sale de la configuración de la comisión: N micros, M parciales (cátedra: 2)
+// y un recuperatorio opcional por cada parcial (cada estudiante puede recuperar ambos, uno o ninguno).
+function nuevaEval(tipo, nombre, recuperaDe = '') { return {id: uid(), nombre, tipo, slot: -1, col: '', max: 100, conv: 'tabla', recuperaDe}; }
+function sincronizarEstructura(c = cfg) {
+  c.cantMicros = Math.max(0, Math.min(40, parseInt(c.cantMicros) || 0));
+  c.cantParciales = Math.max(1, Math.min(6, parseInt(c.cantParciales) || 2));
+  const tomar = (tipo, n, nombre) => {
+    const L = c.evals.filter(e => e.tipo === tipo);
+    while (L.length < n) L.push(nuevaEval(tipo, nombre(L.length + 1)));
+    return L.slice(0, n);
+  };
+  const micros = tomar('micro', c.cantMicros, k => `Micro ${k}`);
+  const parciales = tomar('parcial', c.cantParciales, k => `Parcial ${k}`);
+  const recsViejos = c.evals.filter(e => e.tipo === 'recuperatorio');
+  const evals = [...micros];
+  parciales.forEach(p => {
+    evals.push(p);
+    evals.push(recsViejos.find(r => r.recuperaDe === p.id) || nuevaEval('recuperatorio', `Recup. ${p.nombre}`, p.id));
+  });
+  c.evals = evals;
+}
+function setCantidad(campo, valor) {
+  const antes = cfg[campo];
+  cfg[campo] = parseInt(valor) || 0;
+  sincronizarEstructura();
+  const perdidas = campo === 'cantMicros' && cfg.cantMicros < antes;
+  guardar(); renderEvals(); renderExport(); recalcular();
+  if (perdidas) document.getElementById('cantMicros').focus();
 }
 function setEval(id, campo, valor) {
   const e = cfg.evals.find(x => x.id === id);
@@ -386,22 +431,23 @@ function setEval(id, campo, valor) {
   else if (campo === 'max') e.max = parseFloat(String(valor).replace(',', '.')) || (e.conv === 'directa' ? 10 : 100);
   else if (campo === 'conv') { e.conv = valor; e.max = valor === 'directa' ? 10 : 100; }
   else e[campo] = valor;
-  if (campo === 'tipo' && valor === 'recuperatorio' && !e.recuperaDe) {
-    const p = cfg.evals.find(x => x.tipo === 'parcial'); e.recuperaDe = p ? p.id : '';
-  }
+  if (campo === 'col' && valor && datos[e.slot]) Object.assign(e, tipoDeNota(datos[e.slot], valor));
   guardar(); renderEvals(); renderExport(); recalcular();
 }
-function moverEval(id, d) {
-  const i = cfg.evals.findIndex(x => x.id === id), j = i + d;
-  if (j < 0 || j >= cfg.evals.length) return;
-  [cfg.evals[i], cfg.evals[j]] = [cfg.evals[j], cfg.evals[i]];
-  guardar(); renderEvals(); recalcular();
+// Moodle exporta puntajes de cuestionarios (p. ej. sobre 100) => se convierten con la tabla de porcentajes.
+// Cualquier otra columna con valores entre 0 y 10 (Excel en papel, aunque tenga 6,5) es una nota final ya puesta.
+function tipoDeNota(d, h) {
+  const nums = d.rows.map(r => parseNota(r[h])).filter(x => x != null);
+  const yaEsNota = nums.length > 0 && nums.every(x => x >= 0 && x <= 10) && !/cuestionario|quiz/i.test(h);
+  return {conv: yaEsNota ? 'directa' : 'tabla', max: yaEsNota ? 10 : (nums.length && Math.max(...nums) <= 10 ? 10 : 100)};
 }
-function quitarEval(id) {
-  cfg.evals = cfg.evals.filter(x => x.id !== id);
-  cfg.evals.forEach(e => { if (e.recuperaDe === id) e.recuperaDe = ''; });
-  cfg.exportCols = cfg.exportCols.filter(c => !c.endsWith(':' + id));
-  guardar(); renderEvals(); renderExport(); recalcular();
+// "Parcial 2", "Segundo parcial", "P2", "2do" -> 2
+function numeroEn(t) {
+  t = String(t).toLowerCase();
+  const w = t.match(/primer|segund|tercer|cuart/);
+  if (w) return {primer: 1, segund: 2, tercer: 3, cuart: 4}[w[0]];
+  const m = t.match(/(?:^|\D)(\d{1,2})(?:\D|$)/);
+  return m ? parseInt(m[1]) : 0;
 }
 function autodetectar(i) {
   const d = datos[i], s = cfg.slots[i];
@@ -411,60 +457,72 @@ function autodetectar(i) {
   const cand = d.headers.filter(h => !usadas.has(h) && !ignorar.has(h) &&
     !/total del curso|[uú]ltima descarga|institu|departamento/i.test(h) &&
     /cuestionario|quiz|micro|parcial|recup|evaluaci|nota|examen/i.test(h));
-  if (!cand.length) return alert('No encontré columnas nuevas que parezcan evaluaciones. Agregalas a mano.');
-  const nuevas = cand.map(h => {
-    const nombre = h.replace(/^(cuestionario|quiz|tarea)\s*:\s*/i, '').replace(/\s*\((real|porcentaje|letra)\)\s*$/i, '').trim();
-    const tipo = /recup/i.test(h) ? 'recuperatorio' : /parcial/i.test(h) ? 'parcial' : (/nota/i.test(h) && !/micro/i.test(h) ? 'parcial' : 'micro');
-    // Moodle exporta puntajes de cuestionarios (p. ej. sobre 100) => se convierten con la tabla de porcentajes.
-    // Cualquier otra columna con valores entre 0 y 10 (Excel en papel, aunque tenga 6,5) se toma como nota ya puesta.
-    const nums = d.rows.map(r => parseNota(r[h])).filter(x => x != null);
-    const yaEsNota = nums.length > 0 && nums.every(x => x >= 0 && x <= 10) && !/cuestionario|quiz/i.test(h);
-    const conv = yaEsNota ? 'directa' : 'tabla';
-    const max = yaEsNota ? 10 : (nums.length && Math.max(...nums) <= 10 ? 10 : 100);
-    return {id: uid(), nombre: nombre === 'Nota' ? s.alias : nombre, tipo, slot: i, col: h, max, conv, recuperaDe: ''};
+  if (!cand.length) return alert(`No encontré columnas nuevas de evaluaciones en «${s.alias}». Asignalas a mano en la tabla.`);
+  const archivoEsParcial = /parcial/i.test(s.alias) && !/micro/i.test(s.alias);
+  const info = cand.map(h => {
+    const tipo = /recup/i.test(h) ? 'recuperatorio' : /parcial/i.test(h) ? 'parcial' : /micro/i.test(h) ? 'micro'
+               : archivoEsParcial ? 'parcial' : 'micro';
+    return {h, tipo, num: (tipo !== 'micro' && numeroEn(h.replace(/\(real\)/i, ''))) || numeroEn(s.alias), ...tipoDeNota(d, h)};
   });
-  cfg.evals.push(...nuevas);
-  // recuperatorios: asociar al parcial con el mismo número / palabra, o al del mismo archivo
+  const avisos = [];
+  const microsDet = info.filter(x => x.tipo === 'micro').length;
+  const microsLibres = cfg.evals.filter(e => e.tipo === 'micro' && !e.col).length;
+  if (microsDet > microsLibres) {
+    cfg.cantMicros += microsDet - microsLibres; sincronizarEstructura();
+    avisos.push(`Se encontraron más microevaluaciones de las configuradas: la cantidad pasó a ${cfg.cantMicros}.`);
+  }
   const parc = cfg.evals.filter(e => e.tipo === 'parcial');
-  const clave = t => (t.match(/\b(\d|primer|segund|tercer)/i) || [''])[0].toLowerCase().replace('primer', '1').replace('segund', '2').replace('tercer', '3');
-  nuevas.filter(e => e.tipo === 'recuperatorio').forEach(r => {
-    const k = clave(r.nombre);
-    const p = (k && parc.find(p => clave(p.nombre) === k)) || parc.find(p => p.slot === r.slot) || parc[0];
-    r.recuperaDe = p ? p.id : '';
+  const sinLugar = [];
+  info.forEach(x => {
+    let destino;
+    if (x.tipo === 'micro') destino = cfg.evals.find(e => e.tipo === 'micro' && !e.col);
+    else {
+      const p = parc[x.num - 1];
+      if (x.tipo === 'parcial') destino = (p && !p.col) ? p : parc.find(e => !e.col);
+      else destino = cfg.evals.find(e => e.tipo === 'recuperatorio' && !e.col && p && e.recuperaDe === p.id)
+                  || cfg.evals.find(e => e.tipo === 'recuperatorio' && !e.col);
+    }
+    if (!destino) return sinLugar.push(x.h);
+    Object.assign(destino, {slot: i, col: x.h, conv: x.conv, max: x.max});
   });
+  if (sinLugar.length) avisos.push('Estas columnas no tienen lugar en la estructura y no se asignaron: ' + sinLugar.join(', '));
   guardar(); renderEvals(); renderExport(); recalcular();
+  if (avisos.length) alert(avisos.join('\n\n'));
 }
 function renderEvals() {
-  const parc = cfg.evals.filter(e => e.tipo === 'parcial');
   const fuentes = cfg.slots.map((s, i) => [i, s.alias || `Archivo ${i + 1}`]);
-  const filas = cfg.evals.map(e => {
-    const d = datos[e.slot];
-    const colSel = d
-      ? `<select onchange="setEval('${e.id}','col',this.value)">${opciones(d.headers, e.col)}</select>${e.col && !d.headers.includes(e.col) ? ' <span class="tag c-libre">no está en el archivo</span>' : ''}`
+  const fila = e => {
+    const d = datos[e.slot], color = colorSlot(e.slot), asignada = e.slot >= 0 && cfg.slots[e.slot];
+    const colSel = !asignada ? '<span class="muted">elegí primero el archivo</span>'
+      : d ? `<select onchange="setEval('${e.id}','col',this.value)">${opciones(d.headers, e.col)}</select>${e.col && !d.headers.includes(e.col) ? ' <span class="tag c-libre">no está en el archivo</span>' : ''}`
       : `<input type="text" value="${esc(e.col)}" placeholder="(cargá el archivo)" onchange="setEval('${e.id}','col',this.value)">`;
-    return `<tr>
-      <td><input type="text" value="${esc(e.nombre)}" onchange="setEval('${e.id}','nombre',this.value)" style="width:170px"></td>
-      <td><select onchange="setEval('${e.id}','tipo',this.value)">${opciones(TIPOS, e.tipo, null)}</select></td>
-      <td>${e.tipo === 'recuperatorio' ? `<select onchange="setEval('${e.id}','recuperaDe',this.value)">${opciones(parc.map(p => [p.id, p.nombre]), e.recuperaDe)}</select>` : '<span class="muted">—</span>'}</td>
-      <td><select onchange="setEval('${e.id}','slot',this.value)">${opciones(fuentes, e.slot, '— elegir —')}</select></td>
+    const tipoTxt = e.tipo === 'recuperatorio' ? '↳ Recuperatorio <span class="muted">(opcional)</span>' : e.tipo === 'parcial' ? '<b>Parcial</b>' : 'Micro';
+    return `<tr class="ev-fila" style="--c:${color};--t:${asignada ? color + '14' : 'transparent'}">
+      <td class="ev-color"></td>
+      <td><input type="text" value="${esc(e.nombre)}" onchange="setEval('${e.id}','nombre',this.value)"></td>
+      <td style="white-space:nowrap">${tipoTxt}</td>
+      <td><select class="sel-archivo" onchange="setEval('${e.id}','slot',this.value)">${opciones(fuentes, e.slot, '— sin asignar —')}</select></td>
       <td>${colSel}</td>
-      <td><select onchange="setEval('${e.id}','conv',this.value)">${opciones(CONVS, e.conv || 'tabla', null)}</select></td>
-      <td><input type="number" step="any" value="${e.max}" onchange="setEval('${e.id}','max',this.value)" title="Puntaje máximo de esa columna en el archivo"></td>
-      <td style="white-space:nowrap"><button class="mini" onclick="moverEval('${e.id}',-1)">↑</button> <button class="mini" onclick="moverEval('${e.id}',1)">↓</button> <button class="mini danger" onclick="quitarEval('${e.id}')">✕</button></td>
+      <td>${e.col ? `<select onchange="setEval('${e.id}','conv',this.value)">${opciones(CONVS, e.conv || 'tabla', null)}</select>` : ''}</td>
+      <td>${e.col ? `<input type="number" step="any" value="${e.max}" onchange="setEval('${e.id}','max',this.value)" title="Puntaje máximo de esa columna en el archivo">` : ''}</td>
     </tr>`;
-  }).join('');
-  const nM = cfg.evals.filter(e => e.tipo === 'micro').length, nP = parc.length, nR = cfg.evals.length - nM - nP;
+  };
+  const micros = cfg.evals.filter(e => e.tipo === 'micro'), resto = cfg.evals.filter(e => e.tipo !== 'micro');
+  const grupo = (txt) => `<tr class="ev-grupo"><td colspan="7">${txt}</td></tr>`;
   $('#evals').innerHTML = `
     <div class="row">
-      ${cfg.slots.map((s, i) => `<button class="mini" onclick="autodetectar(${i})" ${datos[i] ? '' : 'disabled'}>Autodetectar en «${esc(s.alias)}»</button>`).join('')}
-      <span class="sp"></span>
-      <button class="mini" onclick="agregarEval('micro')">+ Micro</button>
-      <button class="mini" onclick="agregarEval('parcial')">+ Parcial</button>
-      <button class="mini" onclick="agregarEval('recuperatorio')">+ Recuperatorio</button>
+      <label>Cantidad de microevaluaciones: <input type="number" id="cantMicros" min="0" max="40" value="${cfg.cantMicros}" onchange="setCantidad('cantMicros',this.value)"></label>
+      <label>Cantidad de parciales: <input type="number" min="1" max="6" value="${cfg.cantParciales}" onchange="setCantidad('cantParciales',this.value)"></label>
+      <span class="muted">El % de micros aprobadas se calcula sobre la cantidad configurada.</span>
     </div>
-    ${cfg.evals.length ? `<div class="muted">${nM} micro(s) · ${nP} parcial(es) · ${nR} recuperatorio(s)</div>
-    <div class="scroll-x"><table class="tabla-evals"><thead><tr><th>Nombre</th><th>Tipo</th><th>Recupera a</th><th>Archivo</th><th>Columna</th><th>Tipo de nota</th><th>Máximo</th><th></th></tr></thead><tbody>${filas}</tbody></table></div>`
-    : '<div class="muted" style="margin-top:8px">Todavía no hay evaluaciones. Cargá los archivos y usá Autodetectar, o agregalas a mano.</div>'}`;
+    <div class="row">
+      ${cfg.slots.map((s, i) => `<button class="mini btn-color" style="--c:${colorSlot(i)}" onclick="autodetectar(${i})" ${datos[i] ? '' : 'disabled'}>Autodetectar en «${esc(s.alias)}»</button>`).join('')}
+    </div>
+    <div class="row leyenda">${cfg.slots.map((s, i) => `<span><i style="background:${colorSlot(i)}"></i>${esc(s.alias || 'Archivo ' + (i + 1))}</span>`).join('')}<span><i style="background:${colorSlot(-1)}"></i>sin asignar</span></div>
+    <div class="scroll-x"><table class="tabla-evals"><thead><tr><th></th><th>Nombre</th><th>Tipo</th><th>Archivo</th><th>Columna</th><th>Tipo de nota</th><th>Máximo</th></tr></thead><tbody>
+      ${micros.length ? grupo(`Microevaluaciones (${micros.length})`) + micros.map(fila).join('') : ''}
+      ${grupo(`Parciales (${cfg.cantParciales}) y recuperatorios`)}${resto.map(fila).join('')}
+    </tbody></table></div>`;
 }
 
 /* ====================== reglas ====================== */
@@ -501,7 +559,7 @@ function renderReglas() {
     <div class="row">Micro aprobada con nota ≥ ${num('microAprobada')} <span class="muted">(una micro no rendida cuenta como no aprobada)</span></div>
     <div class="row">Para ${esc(R.etqPromo)}: ${micro('microsPromoModo', 'microsPromoValor')}</div>
     <div class="row">Para ${esc(R.etqReg)}: ${micro('microsRegModo', 'microsRegValor')}</div>
-    <div class="row"><label>${chk('microAusenteCero')} En el promedio de micros, la no rendida cuenta como 0</label></div>
+    <div class="row"><label>${chk('microAusenteUno')} En el promedio de micros, la no rendida cuenta como 1 (nota mínima)</label></div>
   </fieldset>
   <fieldset><legend>Condiciones (se evalúan en este orden)</legend>
     <div class="row">1. Sin ninguna nota registrada → ${txt('etqNoCurso')}</div>
@@ -554,11 +612,16 @@ function calcular() {
   const parc = cfg.evals.filter(e => e.tipo === 'parcial');
   const micros = cfg.evals.filter(e => e.tipo === 'micro');
   const recs = cfg.evals.filter(e => e.tipo === 'recuperatorio');
+  const sinAsignar = e => e.slot < 0 || !cfg.slots[e.slot] || !e.col;
   cfg.evals.forEach(e => {
-    if (e.slot < 0 || !cfg.slots[e.slot] || !e.col) inc.push(`Evaluación «${e.nombre}»: falta asignar archivo y columna.`);
-    else if (datos[e.slot] && !datos[e.slot].headers.includes(e.col)) inc.push(`Evaluación «${e.nombre}»: la columna «${e.col}» no está en «${cfg.slots[e.slot].alias}».`);
+    if (sinAsignar(e)) {
+      if (e.tipo === 'micro') inc.push(`«${e.nombre}»: sin archivo y columna asignados; cuenta como no rendida para todos.`);
+      else if (e.tipo === 'parcial') inc.push(`«${e.nombre}»: sin archivo y columna asignados; todos quedan como «${R.etqAband}» hasta que se cargue.`);
+      // el recuperatorio es opcional: si no se asigna, simplemente nadie recuperó ese parcial
+    }
+    else if (!datos[e.slot]) inc.push(`«${e.nombre}»: el archivo «${cfg.slots[e.slot].alias}» no está cargado.`);
+    else if (!datos[e.slot].headers.includes(e.col)) inc.push(`«${e.nombre}»: la columna «${e.col}» no está en «${cfg.slots[e.slot].alias}».`);
   });
-  recs.forEach(r => { if (!parc.some(p => p.id === r.recuperaDe)) inc.push(`Recuperatorio «${r.nombre}»: falta indicar qué parcial recupera.`); });
 
   // puntaje crudo -> % ; % -> nota 1..10 según la tabla de la cátedra
   const crudo = (a, e) => (e.slot < 0 || !a.filas[e.slot] || !e.col) ? null : parseNota(a.filas[e.slot][e.col]);
@@ -593,7 +656,8 @@ function calcular() {
     });
     // micros
     const mv = micros.map(m => v[m.id]);
-    const base = R.microAusenteCero ? mv.map(x => x ?? 0) : mv.filter(x => x != null);
+    // micro no rendida = 1 (la nota mínima de la escala)
+    const base = R.microAusenteUno ? mv.map(x => x ?? 1) : mv.filter(x => x != null);
     const promMicros = r2(avg(base));
     const microsAprob = mv.filter(x => x != null && x >= R.microAprobada).length;
     const pctMicros = micros.length ? r2(microsAprob / micros.length * 100) : null;
@@ -684,7 +748,7 @@ function renderResultados() {
       <span class="muted" id="cuentaVis"></span>
     </div>
     <div class="scroll"><table>
-      <thead><tr><th>Legajo</th><th>Apellido y nombre</th>${evs.map(e => `<th title="${esc(e.tipo)}">${esc(e.nombre)}</th>`).join('')}
+      <thead><tr><th>Legajo</th><th>Apellido y nombre</th>${evs.map(e => `<th class="th-color" style="--c:${colorSlot(e.col ? e.slot : -1)}" title="${esc(e.col ? (cfg.slots[e.slot] || {}).alias + ' · ' + e.col : 'sin asignar')}">${esc(e.nombre)}</th>`).join('')}
         ${pfs.map(p => `<th>${esc(p.nombre)} (c/recup.)</th>`).join('')}
         <th>Prom. micros</th><th>Micros aprob.</th><th>Prom. parciales</th><th>Nota final</th><th>Condición</th><th>Observaciones</th></tr></thead>
       <tbody id="tbody"></tbody></table></div>`;
@@ -765,7 +829,9 @@ function hojasDetalle(wb) {
     ['Resumen'], ['Alumnos', alumnos.length], ...CONDS.map(c => [etq(c), cnt[c]]), [],
     ['Escala (nota: desde %)'], ...R.tabla.map((m, i) => [`Nota ${i + 1}`, `${m}%`]),
     ['Redondear % antes de la tabla', R.redondearPct ? 'sí' : 'no'], [],
-    ['Reglas'], ['Parcial aprobado con nota ≥', R.parcialAprobado], [`${R.etqPromo}: cada parcial ≥`, R.parcialPromo],
+    ['Reglas'], ['Cantidad de microevaluaciones', cfg.cantMicros], ['Cantidad de parciales', cfg.cantParciales],
+    ['Micro no rendida en el promedio', R.microAusenteUno ? 'cuenta como 1' : 'no se cuenta'],
+    ['Parcial aprobado con nota ≥', R.parcialAprobado], [`${R.etqPromo}: cada parcial ≥`, R.parcialPromo],
     ['Recuperatorio', R.recPolitica === 'reemplaza' ? 'reemplaza siempre la nota del parcial' : 'queda la mayor entre parcial y recuperatorio'],
     [`Parcial recuperado permite ${R.etqPromo}`, R.recPermitePromo ? 'sí' : 'no'],
     ['Micro aprobada con nota ≥', R.microAprobada],
